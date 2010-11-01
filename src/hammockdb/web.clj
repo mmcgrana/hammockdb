@@ -1,7 +1,8 @@
 (ns hammocdb.web
   (:use compojure.core)
   (:use ring.middleware.json-params)
-  (:use ring.middleware.stacktrace))
+  (:use ring.middleware.stacktrace)
+  (:import java.util.UUID))
 
 ; state
 (def state
@@ -12,7 +13,7 @@
   (Integer/parseInt int-str))
 
 (defn uuid-gen []
-  ...)
+  (UUID/randomUUID))
 
 ; json response handling
 (defn jr [status data & [headers]]
