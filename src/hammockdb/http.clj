@@ -2,6 +2,7 @@
   (:use compojure.core)
   (:use ring.middleware.json-params)
   (:use ring.middleware.stacktrace)
+  (:use ring.middleware.reload)
   (:require [clj-json.core :as json])
   (:require [hammockdb.data :as data]))
 
@@ -139,7 +140,8 @@
         (je 500 "internal_error" (.getMessage e))))))
 
 (def app
-  (-> handler
+  (-> #'handler
     wrap-json-params
     wrap-stacktrace-log
-    wrap-internal-error))
+    wrap-internal-error
+    (wrap-reload '(hammockdb.http hammockdb.data))))
