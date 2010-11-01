@@ -1,4 +1,4 @@
-(ns hammocdb.web
+(ns hammocdb.http
   (:use compojure.core)
   (:use ring.middleware.json-params)
   (:use ring.middleware.stacktrace)
@@ -141,7 +141,3 @@
     wrap-json-params
     wrap-stacktrace-log
     wrap-internal-error))
-
-; server
-(defn -main [& args]
-  (run-jetty-async app {:port 5984}))
