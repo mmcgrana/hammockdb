@@ -10,7 +10,7 @@
 (defn db-index
   "Returns a seq of dbids."
   [state]
-  (keys (:dbs @state)))
+  (or (keys (:dbs @state)) []))
 
 (defn- db-new [dbid]
   {})
