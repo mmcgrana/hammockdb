@@ -2,8 +2,7 @@
   (:use compojure.core)
   (:use ring.middleware.json-params)
   (:use ring.middleware.stacktrace)
-  (:require [ring.util.codec :as codec])
-  (:import java.util.UUID))
+  (:require [clj-json.core :as json]))
 
 ; state
 (def state
@@ -12,9 +11,6 @@
 ; utilities
 (defn parse-int [int-str]
   (Integer/parseInt int-str))
-
-(defn uuid-gen []
-  (UUID/randomUUID))
 
 ; json response handling
 (defn jr [status data & [headers]]
@@ -40,37 +36,35 @@
   ; uuid service
   (GET "/_uuids" [{p :params}]
     (let [c (parse-int (or (get p "count") "1"))
-          uuids (take c (repeatedly uuid-gen))]
+          etag (data/uuid)
+          uuids (data/uuids c)]
       (jr 200 {"uuids" uuids}
         {"Cache-Control" "no-cache"
          "Pragma" "no-cache"
-         "Etag" (uuid-gen)})))
+         "Etag" etag})))
 
   ; list dbs
   (GET "/_all_dbs" []
-    (jr 200 (keys (:dbs @state))))
+    (let [dbs (data/db-index state)]
+      (jr 200 dbs)))
 
   ; create db
-  (PUT "/:db" [db]
-    (if (get-in @state [:dbs db])
-      (je 412 "db_exists" "The database already exists.")
-      (do
-        (swap! state assoc-in [:dbs db] (data/db-new))
-        (jr 201 {"ok" true} {"Location" => (str "/" (codec/url-encode db))}))))
+  (PUT "/:dbid" [dbid]
+    (if-let [db (data/db-create state dbid)]
+      (jr 201 {"ok" true} {"Location" (format "/%s" dbid)})
+      (je 412 "db_exists" "The database already exists")))
 
   ; get db info
-  (GET "/:db" [db]
-    (if-let [db (get-in @state [:dbs db])]
-      (jr 200 (data/db-info db))
-      (je 404 "not_found" (str "No database: " db))))
+  (GET "/:dbid" [dbid]
+    (if-let [dbinfo (data/db-get state dbid)]
+      (jr 200 dbinfo)
+      (je 404 "not_found" (format "No database: $%s" dbid))))
 
   ; delete db
-  (DELETE "/:db" [db]
-    (if (get-in @state [:dbs db])
-      (do
-        (swap! state dissoc-in [:dbs db])
-        (jr 200 {"ok" true}))
-      (je 404 "not_found" (str "No database: " db))))
+  (DELETE "/:dbid" [dbid]
+    (if (state/db-delete state dbid)
+      (jr 200 {"ok" true})
+      (je 404 "not_found" (format "No database: %s" dbid))))
 
   ; create db docs
   (POST "/:db/_bulk_docs" [db]
