@@ -2,7 +2,7 @@
   (:import java.util.UUID))
 
 (defn uuid []
-  (UUID/randomUUID))
+  (str (UUID/randomUUID)))
 
 (defn uuids [c]
   (take c (repeatedly uuid)))
