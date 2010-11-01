@@ -13,7 +13,7 @@ The name "HammockDB" comes from Rich Hickey's talk at the first [clojure-conj](h
 ## Usage
 
     $ lein deps
-    $ lein run -m hammockdb.web
+    $ lein run -m hammockdb.server
     $ curl http://localhost:5984/_all_dbs 
 
 ## Testing

@@ -3,6 +3,8 @@
   :dependencies
     [[org.clojure/clojure "1.2.0"]
      [org.clojure/clojure-contrib "1.2.0"]
+     [ring/ring-core "0.3.3" :exclusions [javax.servlet/servlet-api]]
+     [ring/ring-devel "0.3.3" :exclusions [javax.servlet/servlet-api]]
      [ring/ring-jetty-async-adapter "0.3.3-SNAPSHOT"]
      [compojure "0.5.2"]
      [ring-json-params "0.1.1"]

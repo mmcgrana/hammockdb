@@ -1,4 +1,4 @@
-(ns hammocdb.data
+(ns hammockdb.data
   (:import java.util.UUID))
 
 (defn uuid []
@@ -36,12 +36,11 @@
   (if-let [db (get-in @state [:dbs dbid])]
     (db-meta db dbid)))
 
-(def db-delete
+(defn db-delete
   "Deletes the named db. Returns true if deleted, false if db did not exist."
   [state dbid]
   (if-let [db (get-in @state [:dbs dbid])]
     (do
-      (swap! state dissoc-in [:dbs dbid])
+      (swap! state dissoc :dbs dbid)
       true)
     false))
-
