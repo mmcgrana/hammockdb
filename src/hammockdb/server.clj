@@ -3,4 +3,6 @@
   (:use ring.adapter.jetty-async))
 
 (defn -main [& args]
-  (run-jetty-async http/app {:port 5984}))
+  (let [s (run-jetty-async http/app {:port 5984 :join? false})]
+    (println "Hammock time.")
+    (.join s)))
