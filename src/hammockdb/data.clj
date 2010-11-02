@@ -35,12 +35,15 @@
    "doc_count" (count db)
    "doc_size" (* 339.2 (count db))})
 
+(defn db-get* [state* dbid]
+  (if-not-let [db (get-in state* [:dbs dbid])]
+    {:no-db true}
+    {:db (db-meta db dbid)}))
+
 (defn db-get
   "no-db, db"
   [state dbid]
-  (if-not-let [db (get-in @state [:dbs dbid])]
-    {:no-db true}
-    {:db (db-meta db dbid)}))
+  (db-get* @state dbid))
 
 (defn db-delete
   "no-db, ok"
