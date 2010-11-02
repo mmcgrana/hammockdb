@@ -1,4 +1,5 @@
 (ns hammockdb.data
+  (:require [hammockdb.util :as util])
   (:import java.util.UUID))
 
 (defn write-fn [pure-write]
@@ -65,10 +66,44 @@
 
 (def db-delete (write-fn db-delete*))
 
+(def doc-special-keys
+  #{"_id" "_rev" "_deleted" "_attachments"})
+
+(defn doc-validate-keys [body]
+  (some
+    (fn [[k v]]
+      (and (.startsWith k "_") (not (doc-special-keys k)))
+        {:invalid-key k}))
+    body))
+
+(defn doc-new-rev [& [old-rev]]
+  (if old-rev
+    (let [num (util/parse-int (first (str/split old-rev "-")))]
+      (str (inc num) "-" (uuid)))
+    (str 1 "-" (uuid))))
+
+(defn doc-update
+  "id-mismatch, write-conflict, rev-mismatch, invalid-key, update"
+  [doc body & [opts]]
+  (if (not= (body "_id") (:id doc))
+    {:id-mismatch true}
+    (if (and (not (:delected doc))
+             (:rev doc)
+             (not= (:rev doc) (body "_rev")))
+      {:rev-mismatch true} ; no write-conflict yet
+      (let [err? (doc-validate-keys body)]
+        (if (:invalid-key err?)
+          err?
+          (let [rev (if (:rev doc) (doc-new-rev (:rev doc))
+                                   (or (body "_rev") (doc-new-rev)))
+                deleted (body "_deleted")
+                r {:info {:id (:id doc) :rev rev}}
+                r (if (:seq doc) (assoc r :old-seq (:seq doc)) r)
+                doc (assoc doc :rev rev :deleted deleted :body body)]
+            {:update {:doc doc :r r}}))))))
+
 (defn doc-new [docid body]
-  {:id docid
-   :body body
-   :conflicts []})
+  (:doc (doc-update {:id docid :conflicts []} body)))
 
 (defn doc-find-rev [doc rev]
   (some
@@ -99,13 +134,6 @@
         {:doc (doc-inflate doc opts)}))))
 
 (def doc-get (read-fn doc-get*))
-
-(defn doc-update
-  "id-mismatch, write-conflict, rev-mismatch, bad-field, rev"
-  [doc jdoc & [opts]]
-  (if (or (not (get jdoc "_id")) (not= (get jdoc "_id") (get doc "_id")))
-    {:id-mismatch true}
-    (if (not (:deleted))))
 
 (defn doc-put*
   "no-db, bad-doc, doc"

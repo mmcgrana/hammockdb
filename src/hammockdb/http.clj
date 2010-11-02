@@ -3,21 +3,13 @@
   (:use ring.middleware.json-params)
   (:use ring.middleware.stacktrace)
   (:use ring.middleware.reload)
+  (:use [hammockdb.util :only (switch)])
   (:require [clj-json.core :as json])
+  (:require [hammockdb.util :as util])
   (:require [hammockdb.data :as data])
   (:require [hammockdb.state :as state]))
 
-; utilities
-(defn parse-int [int-str]
-  (Integer/parseInt int-str))
-
-(defmacro switch [data & cases]
-  `(let [{:keys ~(vec (take-nth 2 cases))} ~data]
-    (cond
-      ~@cases)))
-
 ; json requests and responses
-
 (defn jbody? [data]
   (and data (not (vector? data))))
 
@@ -51,7 +43,7 @@
 
   ; uuid service
   (GET "/_uuids" {{c "count"} :params}
-    (let [c (parse-int (or c "1"))]
+    (let [c (util/parse-int (or c "1"))]
       (jr 200 {"uuids" (data/uuids c)}
         {"Cache-Control" "no-cache"
          "Pragma" "no-cache"
@@ -112,6 +104,7 @@
       no-doc (je-no-doc docid)
       doc (jr 200 (assoc doc "ok" true))))
 
+; middlewares
 (defn wrap-internal-error [handler]
   (fn [req]
     (try
@@ -125,6 +118,7 @@
                              (:uri req)))
     (handler req)))
 
+; http service
 (def app
   (-> #'handler
     wrap-json-params
