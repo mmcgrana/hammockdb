@@ -4,11 +4,8 @@
   (:use ring.middleware.stacktrace)
   (:use ring.middleware.reload)
   (:require [clj-json.core :as json])
-  (:require [hammockdb.data :as data]))
-
-; state
-(def state
-  (atom {}))
+  (:require [hammockdb.data :as data])
+  (:require [hammockdb.state :as state]))
 
 ; utilities
 (defn parse-int [int-str]
@@ -36,7 +33,7 @@
   (GET "/_config/*" [] (jr 200 {"ok" true}))
 
   ; uuid service
-  (GET "/_uuids" [{p :params}]
+  (GET "/_uuids" {p :params}
     (let [c (parse-int (or (get p "count") "1"))
           etag (data/uuid)
           uuids (data/uuids c)]
@@ -47,24 +44,24 @@
 
   ; list dbs
   (GET "/_all_dbs" []
-    (let [dbs (data/db-index state)]
+    (let [dbs (data/db-index state/state)]
       (jr 200 dbs)))
 
   ; create db
   (PUT "/:dbid" [dbid]
-    (if-let [db (data/db-create state dbid)]
+    (if-let [db (data/db-create state/state dbid)]
       (jr 201 {"ok" true} {"Location" (format "/%s" dbid)})
       (je 412 "db_exists" "The database already exists")))
 
   ; get db info
   (GET "/:dbid" [dbid]
-    (if-let [dbinfo (data/db-get state dbid)]
+    (if-let [dbinfo (data/db-get state/state dbid)]
       (jr 200 dbinfo)
       (je 404 "not_found" (format "No database: $%s" dbid))))
 
   ; delete db
   (DELETE "/:dbid" [dbid]
-    (if (data/db-delete state dbid)
+    (if (data/db-delete state/state dbid)
       (jr 200 {"ok" true})
       (je 404 "not_found" (format "No database: %s" dbid))))
 

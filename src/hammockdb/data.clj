@@ -22,7 +22,7 @@
     (if (get-in @state [:dbs dbid])
       false
       (do
-        (swap! state assoc-in [:dbs dbid] (db-new))
+        (swap! state assoc-in [:dbs dbid] (db-new dbid))
         true)))
 
 (defn- db-meta [db dbid]
