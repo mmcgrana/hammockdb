@@ -24,10 +24,10 @@
 (defn db-create
   "existing-db, db"
   [state dbid]
-  (let [state-old @astate
-        [state-new ret] (db-create* @state dbid)]
-    (when state-new
-      (assert (compare-and-set! state state-old state-new)))
+  (let [state* @astate
+        [state** ret] (db-create* @state dbid)]
+    (when state**
+      (assert (compare-and-set! state state* state**)))
     ret))
 
 (defn- db-meta [db dbid]
@@ -45,14 +45,19 @@
   [state dbid]
   (db-get* @state dbid))
 
+(defn db-delete* [state* dbid]
+  (if-not-let [db (get-in state* [:dbs dbid])]
+    [nil {:no-db true}]
+    [(dissoc state* :dbs dbid) {:ok true}]))
+
 (defn db-delete
   "no-db, ok"
   [state dbid]
-  (if-not-let [db (get-in @state [:dbs dbid])]
-    {:no-db true}
-    (do
-      (swap! state dissoc :dbs dbid)
-      {:ok true})))
+  (let [state* @astate
+        [state** ret] (db-delete* @state dbid)]
+    (when state**
+      (assert (compare-and-set! state state* state**)))
+    ret))
 
 (defn- doc-inflate [raw-doc opts]
   raw-doc)
