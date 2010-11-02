@@ -136,9 +136,16 @@
       (catch Exception e
         (je 500 "internal_error" (.getMessage e))))))
 
+(defn wrap-request-log [handler]
+  (fn [req]
+    (println (format "%s %s" (.toUpperCase (name (:request-method req)))
+                             (:uri req)))
+    (handler req)))
+
 (def app
   (-> #'handler
     wrap-json-params
     wrap-stacktrace-log
     wrap-internal-error
+    wrap-request-log
     (wrap-reload '(hammockdb.http hammockdb.data))))
