@@ -35,10 +35,11 @@
 (defn je-no-doc [docid]
   (je 404 "not_found" "No doc with id: " docid))
 
+(defn je-bad-doc []
+  (je 400 "bad_request" "Request body must be a JSON object"))
+
 ; http api
 (defroutes handler
-
-  ; welcome
   (GET "/" []
     (jr 200 {"couchdb" "Welcome" "version" "0"}))
 
@@ -85,20 +86,6 @@
       no-db (je-no-db dbid)
       results (jr 200 results)))
 
-  ;; view db query results
-  ;(GET "/:db/_all_docs" [db]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;   (let [rows (map
-  ;                (fn [docid doc]
-  ;                  {"id" docid "key" docid "value" {"rev" (get doc "rev")}})
-  ;                (data/doc-all (view/with-params params)))]
-  ;    (jr 200 {"rows" rows "total_rows" (data/db-doc-count db)}))
-  ;  (je 404 "not_found" (str "No database: " db))))
-  ;
-  ;; database changes feed
-  ;(GET "/:db/_changes" [db]
-  ;  (je 500 "not_implemented" "Getting there"))
-
   ; get doc
   (GET "/:dbid/:docid" {{:strs [dbid docid rev attachements conflicts]}}
     (switch (data/db-doc-get state dbid docid {:rev rev
@@ -113,29 +100,23 @@
   (POST "/:dbid" {{doc :json-params dbid "dbid"} :params}
     (switch (data/db-doc-post state dbid doc)
       no-db (je-no-db dbid)
-      bad-doc (je 400 "bad_request" "Request body must be a JSON object")
+      bad-doc (je-bad-doc)
       doc (jr 201 (assoc doc "ok" true)
                   {"Location" (format "/%s/%s" dbid (doc "_id"))})))
 
-  ;; created keyed doc or update doc
-  ;(PUT "/:db/:docid" [db docid]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;    (let [doc json-params
-  ;          doc (assoc doc "_id" docid)
-  ;          resp (data/db-put state doc)
-  ;          resp (assoc resp "ok" true)]
-  ;      (jr 201 resp {"Location" (format "/%s/%s" db docid)}))
-  ;    (je 404 "not_found" (str "no database: " db))
-  ;
-  ;; delete doc
-  ;(DELETE "/:db/:docid" [{{:strs [db docid rev]} :params}]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;    (if-let [doc (data/doc-get state db docid)]
-  ;      (let [new_rev (data/dec-del state db docid)]
-  ;        (jr 200 {"ok" true "id" docid "rev" new_rev}))
-  ;      (3 404 "not_found" (str "No doc with id: " docid)))
-  ;    (je 404 "not_found" (str "no database: " db))))
-)
+  ; created keyed doc or update doc
+  (PUT "/:dbid/:docid" {{doc :json-params dbid "dbid" docid "docid"} :params}
+    (switch (data/db-doc-put state dbid docid doc)
+      no-db (je-no-db dbid)
+      bad-doc (je-bad-doc)
+      resp (jr 201 resp {"Location" (format "/%s/%s" db docid)})))
+
+  ; delete doc
+  (DELETE "/:dbid/:docid" {{:strs [dbid docid rev]} :params}
+    (switch (db-doc-del state dbid docid rev)
+      no-db (je-no-db dbid)
+      no-doc (je-no-doc docid)
+      doc-info (jr 200 (assoc doc-info "ok" true))))
 
 (defn wrap-internal-error [handler]
   (fn [req]

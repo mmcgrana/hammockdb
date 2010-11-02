@@ -77,3 +77,22 @@
 (defn db-doc-post [state dbid doc]
   (let doc [(contains? doc "_id") doc (assoc doc "_id" (uuid))]
     (db-doc-put state dbid doc)))
+
+(PUT "/:db/:docid" [db docid]
+    (if-let [db (get-in @state [:dbs db])]
+      (let [doc json-params
+            doc (assoc doc "_id" docid)
+            resp (data/db-put state doc)
+            resp (assoc resp "ok" true)]
+        (jr 201 resp {"Location" (format "/%s/%s" db docid)}))
+      (je 404 "not_found" (str "no database: " db))
+  ;
+
+ ;; delete doc
+  ;(DELETE "/:db/:docid" [{{:strs [db docid rev]} :params}]
+  ;  (if-let [db (get-in @state [:dbs db])]
+  ;    (if-let [doc (data/doc-get state db docid)]
+  ;      (let [new_rev (data/dec-del state db docid)]
+  ;        (jr 200 {"ok" true "id" docid "rev" new_rev}))
+  ;      (3 404 "not_found" (str "No doc with id: " docid)))
+  ;    (je 404 "not_found" (str "no database: " db))))
