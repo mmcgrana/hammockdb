@@ -103,7 +103,7 @@
             {:update {:doc doc :r r}}))))))
 
 (defn doc-new [docid body]
-  (:doc (doc-update {:id docid :conflicts []} body)))
+  (:doc (:update (doc-update {:id docid :conflicts []} body))))
 
 (defn doc-find-rev [doc rev]
   (some
@@ -140,16 +140,27 @@
   [state* dbid docid body & [opts]]
   (if-not-let [db (get state* dbid)]
     {:no-db true}
-    (if-let [doc (get (:by-docid db) docid)]
-      ()
-      (let [doc (assoc (doc-new docid body) :seq (inc (:seq db)))
-            db (assoc db
-                 :seq (inc (:seq db))
-                 :doc-count (inc (:doc-count db))
-                 :by-docid (assoc (:by-docid db) (:id doc) doc)
-                 :by-seq (assoc (:by-seq db) (inc (:seq db))
-                                             {:id (:id doc) :rev (:rev doc)}))]
-         [(assoc state* dbid db) doc]))))
+    (let [new-seq (inc (:sec db))]
+      (if-let [doc (get (:by-docid db) docid)]
+        (let [res (doc-update doc body opts)]
+          (if-not-let [update (:update res)]
+            res
+            (let [doc (:doc update)
+                  doc (assoc doc :sec new-seq)
+                  db (if-let [old-seq (:old-seq (:r update))]
+                       (update-in db [:by-seq] assoc old-seq nil)
+                       db)
+                  db (assoc db :seq new-seq)
+                  db (update-in db [:by-seq] assoc new-seq (:info (:r update)))]
+              [db doc])))
+        (let [doc (doc-new docid body)
+              doc (assoc doc :seq new-seq)
+              db (assoc db :seq new-seq)
+              db (update-in db [:doc-count] inc)
+              db (update-in db [:by-docid] assoc docid doc)
+              db (update-in db [:by-seq] assoc new-seq
+                   {:id docid :rev (:rev doc)})]
+          [db doc])))))
 
 (def doc-put (write-fn doc-put*))
 
