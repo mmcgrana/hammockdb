@@ -22,6 +22,7 @@
 
 ; http api
 (defroutes handler
+
   ; welcome
   (GET "/" []
     (jr 200 {"couchdb" "Welcome" "version" "0"}))
