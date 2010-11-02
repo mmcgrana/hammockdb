@@ -12,17 +12,23 @@
   [state]
   {:dbids (or (keys (:dbs @state)) [])})
 
-(defn- db-new [dbid]
+(defn db-new [dbid]
   {})
+
+(defn db-create* [state* dbid]
+  (if (get-in state* [:dbids dbid])
+    [nil {:existing-db true}]
+    (let [db (db-new dbid)]
+      [(assoc-in state* [:dbs dbid] db) {:db db}])))
 
 (defn db-create
   "existing-db, db"
-   [state dbid]
-    (if (get-in @state [:dbs dbid])
-      {:existing-db true}
-      (let [db (db-new dbid)]
-        (swap! state assoc-in [:dbs dbid] (db-new dbid))
-        {:db db})))
+  [state dbid]
+  (let [state-old @astate
+        [state-new ret] (db-create* @state dbid)]
+    (when state-new
+      (assert (compare-and-set! state state-old state-new)))
+    ret))
 
 (defn- db-meta [db dbid]
   {"db_name" dbid
@@ -45,54 +51,36 @@
       (swap! state dissoc :dbs dbid)
       {:ok true})))
 
-(defn db-doc-bulk-update
-  ""
-  [state docs all-or-nothing]
-   (let [docs (get params "docs")
-            all-or-nothing (contains? params "all-or-nothing")
-            results (map
-                      (fn [doc] (data/doc-put state doc))
-                      docs)]))
-
-(defn- db-doc-inflate [raw-doc opts]
+(defn- doc-inflate [raw-doc opts]
   raw-doc)
 
-(defn db-doc-get [state dbid docid & [opts]]
+(defn doc-get [state dbid docid & [opts]]
   (if-not-let [db (get-in @state [:dbs dbid])]
     {:no-db true}
-    (if-not-let [raw-doc (get db docid)]
+    (if-not-let [doc (get db docid)]
       {:no-doc true}
-      (if (:deleted raw-doc)
+      (if (:deleted doc)
         {:del-doc true}
-        (db-doc-inflate raw-doc opts)))))
+        {:doc (doc-inflate doc opts)}))))
 
-(defn db-doc-get* [db])
-
-(defn db-doc-put [state dbid jdoc & [opts]]
+(defn doc-put
+  "no-db, bad-doc, doc"
+  [state dbid docid doc & [opts]]
   (if-not-let [db (get-in @state [:dbs dbid])]
     {:no-db true}
-    (if-let [doc (db-doc-get* db (jdoc "_id"))]
-      (let [doc2 (db-doc-update )]))))
 
-(defn db-doc-post [state dbid doc]
-  (let doc [(contains? doc "_id") doc (assoc doc "_id" (uuid))]
-    (db-doc-put state dbid doc)))
+(defn doc-post
+  "no-db, bad-doc, doc"
+  [state dbid doc]
+  (let [docid (or (get doc "_id") (uuid))
+        doc (assoc doc "_id" docid)]
+    (doc-put state dbid docid doc)))
 
-(PUT "/:db/:docid" [db docid]
-    (if-let [db (get-in @state [:dbs db])]
-      (let [doc json-params
-            doc (assoc doc "_id" docid)
-            resp (data/db-put state doc)
-            resp (assoc resp "ok" true)]
-        (jr 201 resp {"Location" (format "/%s/%s" db docid)}))
-      (je 404 "not_found" (str "no database: " db))
-  ;
-
- ;; delete doc
-  ;(DELETE "/:db/:docid" [{{:strs [db docid rev]} :params}]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;    (if-let [doc (data/doc-get state db docid)]
-  ;      (let [new_rev (data/dec-del state db docid)]
-  ;        (jr 200 {"ok" true "id" docid "rev" new_rev}))
-  ;      (3 404 "not_found" (str "No doc with id: " docid)))
-  ;    (je 404 "not_found" (str "no database: " db))))
+(defn doc-delete
+  "no-db, no-doc, doc"
+  [state dbid docid rev]
+  (if-not-let [db (get-in @state [:dbs dbid])]
+    {:no-db true}
+    (if-not-let [doc (get db docid)]
+      {:no-doc true}
+      ())))

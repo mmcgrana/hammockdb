@@ -80,12 +80,6 @@
       no-db (jr 200 {"ok" true})
       ok (je-no-db dbid)))
 
-  ; create db docs
-  (POST "/:dbid/_bulk_docs" {{:strs [dbid docs all-or-nothing]} :params}
-    (switch (data/db-bulk-update state dbid docs all-or-nothing)
-      no-db (je-no-db dbid)
-      results (jr 200 results)))
-
   ; get doc
   (GET "/:dbid/:docid" {{:strs [dbid docid rev attachements conflicts]}}
     (switch (data/db-doc-get state dbid docid {:rev rev
@@ -109,14 +103,14 @@
     (switch (data/db-doc-put state dbid docid doc)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
-      resp (jr 201 resp {"Location" (format "/%s/%s" db docid)})))
+      doc (jr 201 doc {"Location" (format "/%s/%s" db docid)})))
 
   ; delete doc
   (DELETE "/:dbid/:docid" {{:strs [dbid docid rev]} :params}
-    (switch (db-doc-del state dbid docid rev)
+    (switch (db-doc-delete state dbid docid rev)
       no-db (je-no-db dbid)
       no-doc (je-no-doc docid)
-      doc-info (jr 200 (assoc doc-info "ok" true))))
+      doc (jr 200 (assoc doc "ok" true))))
 
 (defn wrap-internal-error [handler]
   (fn [req]
