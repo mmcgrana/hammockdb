@@ -8,22 +8,21 @@
   (take c (repeatedly uuid)))
 
 (defn db-index
-  "Returns a seq of dbids."
+  "dbids"
   [state]
-  (or (keys (:dbs @state)) []))
+  {:dbids (or (keys (:dbs @state)) [])})
 
 (defn- db-new [dbid]
   {})
 
 (defn db-create
-  "Create a new databasee. Returns true if a database was created, false
-   if a database already existed with the given dbid."
+  "existing-db, db"
    [state dbid]
     (if (get-in @state [:dbs dbid])
-      false
-      (do
+      {:existing-db true}
+      (let [db (db-new dbid)]
         (swap! state assoc-in [:dbs dbid] (db-new dbid))
-        true)))
+        {:db db})))
 
 (defn- db-meta [db dbid]
   {"db_name" dbid
@@ -31,19 +30,20 @@
    "doc_size" (* 339.2 (count db))})
 
 (defn db-get
-  "Returns metadata about the named db if it exists, or nil otherwise."
+  "no-db, db"
   [state dbid]
-  (if-let [db (get-in @state [:dbs dbid])]
-    (db-meta db dbid)))
+  (if-not-let [db (get-in @state [:dbs dbid])]
+    {:no-db true}
+    {:db (db-meta db dbid)}))
 
 (defn db-delete
-  "Deletes the named db. Returns true if deleted, false if db did not exist."
+  "no-db, ok"
   [state dbid]
-  (if-let [db (get-in @state [:dbs dbid])]
+  (if-not-let [db (get-in @state [:dbs dbid])]
+    {:no-db true}
     (do
       (swap! state dissoc :dbs dbid)
-      true)
-    false))
+      {:ok true})))
 
 (defn db-doc-bulk-update
   ""
