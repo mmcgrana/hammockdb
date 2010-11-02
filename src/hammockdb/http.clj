@@ -99,8 +99,8 @@
                   {"Location" (format "/%s/%s" dbid (doc "_id"))})))
 
   ; created keyed doc or update doc
-  (PUT "/:dbid/:docid" {{doc :json-params dbid "dbid" docid "docid"} :params}
-    (switch (data/db-doc-put state dbid docid doc)
+  (PUT "/:dbid/:docid" {{body :json-params dbid "dbid" docid "docid"} :params}
+    (switch (data/db-doc-put state dbid docid body)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
       doc (jr 201 doc {"Location" (format "/%s/%s" db docid)})))

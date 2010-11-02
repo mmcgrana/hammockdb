@@ -3,7 +3,7 @@
 
 (defn write-fn [pure-write]
   (fn [state & args]
-    (let [state* @astate
+    (let [state* @state
           [state** ret] (apply write-fn @state args)]
       (when state**
         (assert (compare-and-set! state state* state**)))
@@ -19,15 +19,18 @@
 (defn uuids [c]
   (take c (repeatedly uuid)))
 
+(defn db-new [dbid]
+  {:seq 0
+   :doc_count
+   :by_docid {}
+   :by_seq {}})
+
 (defn db-index*
   "dbids"
   [state*]
   {:dbids (or (keys state*) [])})
 
 (def db-index (read-fn db-index))
-
-(defn db-new [dbid]
-  {})
 
 (defn db-create*
   "existing-db, db"
@@ -62,15 +65,34 @@
 
 (def db-delete (write-fn db-delete*))
 
-(defn doc-inflate [raw-doc opts]
-  raw-doc)
+(defn doc-new [docid body]
+  {:id docid
+   :body body
+   :conflicts []})
+
+(defn doc-find-rev [doc rev]
+  (some
+    (fn [doc] (and (= rev (:rev doc)) doc))
+    (:conflicts doc)))
+
+(def doc-conflict-revs [doc]
+  (map :rev (or (:conflicts doc))))
+
+(defn doc-inflate [doc opts]
+  (if (and (:rev opts) (not= (:rev opts) (:rev doc)))
+    (doc-inflate (doc-find-rev doc (:rev opts)))
+    (let [doci {"_rev" (:rev doc) "_id" (:id doc)}
+          doci (if (:conflicts opts)
+                 (assoc doci "_conflicts" (doc-conflict-revs doc))
+                 doci)]
+      (merge (:body doc) doci))))
 
 (defn doc-get*
   "no-db, no-doc, del-doc, doc"
-  [state* dbid doc-id & [opts]]
+  [state* dbid docid & [opts]]
   (if-not-let [db (get state* dbid)]
     {:no-db true}
-    (if-not-let [doc (get db docid)]
+    (if-not-let [doc (get (:by-docid db) docid)]
       {:no-doc true}
       (if (:deleted doc)
         {:del-doc true}
@@ -78,14 +100,28 @@
 
 (def doc-get (read-fn doc-get*))
 
+(defn doc-update
+  "id-mismatch, write-conflict, rev-mismatch, bad-field, rev"
+  [doc jdoc & [opts]]
+  (if (or (not (get jdoc "_id")) (not= (get jdoc "_id") (get doc "_id")))
+    {:id-mismatch true}
+    (if (not (:deleted))))
+
 (defn doc-put*
   "no-db, bad-doc, doc"
-  [state* dbid docid doc & [opts]]
-  (if-not-let [db (get-in state* dbid)]
+  [state* dbid docid body & [opts]]
+  (if-not-let [db (get state* dbid)]
     {:no-db true}
-    (if-let [doc (get-in state* dbid docid)]
-      ; TODO
-      )))
+    (if-let [doc (get (:by-docid db) docid)]
+      ()
+      (let [doc (assoc (doc-new docid body) :seq (inc (:seq db)))
+            db (assoc db
+                 :seq (inc (:seq db))
+                 :doc-count (inc (:doc-count db))
+                 :by-docid (assoc (:by-docid db) (:id doc) doc)
+                 :by-seq (assoc (:by-seq db) (inc (:seq db))
+                                             {:id (:id doc) :rev (:rev doc)}))]
+         [(assoc state* dbid db) doc]))))
 
 (def doc-put (write-fn doc-put*))
 
