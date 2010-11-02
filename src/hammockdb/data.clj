@@ -19,10 +19,12 @@
 (defn uuids [c]
   (take c (repeatedly uuid)))
 
-(defn db-index
+(defn db-index*
   "dbids"
-  [state]
-  {:dbids (or (keys (:dbs @state)) [])})
+  [state*]
+  {:dbids (or (keys state*) [])})
+
+(def db-index (read-fn db-index))
 
 (defn db-new [dbid]
   {})
@@ -30,10 +32,10 @@
 (defn db-create*
   "existing-db, db"
   [state* dbid]
-  (if (get-in state* [:dbids dbid])
+  (if (get state* dbid)
     [nil {:existing-db true}]
     (let [db (db-new dbid)]
-      [(assoc-in state* [:dbs dbid] db) {:db db}])))
+      [(assoc state* dbid db) {:db db}])))
 
 (def db-create (write-fn db-create*))
 
@@ -45,7 +47,7 @@
 (defn db-get*
   "no-db, db"
   [state* dbid]
-  (if-not-let [db (get-in state* [:dbs dbid])]
+  (if-not-let [db (get state* dbid)]
     {:no-db true}
     {:db (db-inflate db dbid)}))
 
@@ -54,9 +56,9 @@
 (defn db-delete*
   "no-db, ok"
   [state* dbid]
-  (if-not-let [db (get-in state* [:dbs dbid])]
+  (if-not-let [db (get state* dbid)]
     [nil {:no-db true}]
-    [(dissoc state* :dbs dbid) {:ok true}]))
+    [(dissoc state* dbid) {:ok true}]))
 
 (def db-delete (write-fn db-delete*))
 
@@ -66,7 +68,7 @@
 (defn doc-get*
   "no-db, no-doc, del-doc, doc"
   [state* dbid doc-id & [opts]]
-  (if-not-let [db (get-in @state [:dbs dbid])]
+  (if-not-let [db (get state* dbid)]
     {:no-db true}
     (if-not-let [doc (get db docid)]
       {:no-doc true}
@@ -79,8 +81,11 @@
 (defn doc-put*
   "no-db, bad-doc, doc"
   [state* dbid docid doc & [opts]]
-  (if-not-let [db (get-in state* [:dbs dbid])]
-    {:no-db true}))
+  (if-not-let [db (get-in state* dbid)]
+    {:no-db true}
+    (if-let [doc (get-in state* dbid docid)]
+      ; TODO
+      )))
 
 (def doc-put (write-fn doc-put*))
 
@@ -96,7 +101,7 @@
 (defn doc-delete*
   "no-db, no-doc, doc"
   [state* dbid docid rev]
-  (if-not-let [db (get-in state* [:dbs dbid])]
+  (if-not-let [db (get state* dbid)]
     {:no-db true}
     (if-not-let [doc (get db docid)]
       {:no-doc true}
