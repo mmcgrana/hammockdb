@@ -44,3 +44,36 @@
       (swap! state dissoc :dbs dbid)
       true)
     false))
+
+(defn db-doc-bulk-update
+  ""
+  [state docs all-or-nothing]
+   (let [docs (get params "docs")
+            all-or-nothing (contains? params "all-or-nothing")
+            results (map
+                      (fn [doc] (data/doc-put state doc))
+                      docs)]))
+
+(defn- db-doc-inflate [raw-doc opts]
+  raw-doc)
+
+(defn db-doc-get [state dbid docid & [opts]]
+  (if-not-let [db (get-in @state [:dbs dbid])]
+    {:no-db true}
+    (if-not-let [raw-doc (get db docid)]
+      {:no-doc true}
+      (if (:deleted raw-doc)
+        {:del-doc true}
+        (db-doc-inflate raw-doc opts)))))
+
+(defn db-doc-get* [db])
+
+(defn db-doc-put [state dbid jdoc & [opts]]
+  (if-not-let [db (get-in @state [:dbs dbid])]
+    {:no-db true}
+    (if-let [doc (db-doc-get* db (jdoc "_id"))]
+      (let [doc2 (db-doc-update )]))))
+
+(defn db-doc-post [state dbid doc]
+  (let doc [(contains? doc "_id") doc (assoc doc "_id" (uuid))]
+    (db-doc-put state dbid doc)))

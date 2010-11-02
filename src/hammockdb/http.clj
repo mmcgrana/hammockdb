@@ -11,7 +11,11 @@
 (defn parse-int [int-str]
   (Integer/parseInt int-str))
 
-; json response handling
+; json requests and responses
+
+(defn jbody? [data]
+  (and data (not (vector? data))))
+
 (defn jr [status data & [headers]]
   {:status status
    :headers (merge headers {"Content-Type" "application/json"})
@@ -19,6 +23,12 @@
 
 (defn je [status error reason]
   (jr status {"error" error "reason" reason}))
+
+(defn je-no-db [dbid]
+  (je 404 "not_found" (format "No database: %s" dbid)))
+
+(defn je-no-doc [docid]
+  (je 404 "not_found" "No doc with id: " docid))
 
 ; http api
 (defroutes handler
@@ -34,8 +44,8 @@
   (GET "/_config/*" [] (jr 200 {"ok" true}))
 
   ; uuid service
-  (GET "/_uuids" {p :params}
-    (let [c (parse-int (or (get p "count") "1"))
+  (GET "/_uuids" {{c "count"} :params}
+    (let [c (parse-int (or c "1"))
           etag (data/uuid)
           uuids (data/uuids c)]
       (jr 200 {"uuids" uuids}
@@ -45,37 +55,37 @@
 
   ; list dbs
   (GET "/_all_dbs" []
-    (let [dbs (data/db-index state/state)]
-      (jr 200 dbs)))
+    (let [{:keys [dbids] (data/db-index state/state)}]
+      (jr 200 dbids)))
 
   ; create db
   (PUT "/:dbid" [dbid]
-    (if-let [db (data/db-create state/state dbid)]
-      (jr 201 {"ok" true} {"Location" (format "/%s" dbid)})
-      (je 412 "db_exists" "The database already exists")))
+    (let [{:keys [existing-db db]} (data/db-create state/state dbid)]
+      (cond
+        existing-db (je 412 "db_exists" "The database already exists")
+        db (jr 201 {"ok" true} {"Location" (format "/%s" dbid)}))))
 
   ; get db info
   (GET "/:dbid" [dbid]
-    (if-let [dbinfo (data/db-get state/state dbid)]
-      (jr 200 dbinfo)
-      (je 404 "not_found" (format "No database: $%s" dbid))))
+    (let [{:keys [no-db db]} (data/db-get state/state dbid)]
+      (cond
+        no-db (je-no-db dbid)
+        db (jr 200 dbinfo))))
 
   ; delete db
   (DELETE "/:dbid" [dbid]
-    (if (data/db-delete state/state dbid)
-      (jr 200 {"ok" true})
-      (je 404 "not_found" (format "No database: %s" dbid))))
+    (let [{:keys [no-db ok]} (data/db-delete state/state dbid)]
+      (cond
+        no-db (jr 200 {"ok" true})
+        ok (je-no-db dbid))))
 
   ; create db docs
-  ;(POST "/:db/_bulk_docs" [db]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;    (let [docs (get params "docs")
-  ;          all-or-nothing (contains? params "all-or-nothing")
-  ;          results (map
-  ;                    (fn [doc] (data/doc-put state doc))
-  ;                    docs)]
-  ;      (jr 200 results))
-  ;    (je 404 "not_found" (str "No database: " db))))
+  (POST "/:dbid/_bulk_docs" {{:strs [dbid docs all-or-nothing]} :params}
+    (let [{:keys [no-db results]}
+          (data/db-bulk-update state dbid docs all-or-nothing)]
+      (cond
+        no-db (je-no-db dbid)
+        results (jr 200 results))))
 
   ;; view db query results
   ;(GET "/:db/_all_docs" [db]
@@ -90,26 +100,28 @@
   ;; database changes feed
   ;(GET "/:db/_changes" [db]
   ;  (je 500 "not_implemented" "Getting there"))
-  ;
-  ;; get doc
-  ;(GET "/:db/:docid" [db docid]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;    (let [doc (data/doc-get docid parmas)]
-  ;      (if doc
-  ;        (jr 200 (jh doc paams))
-  ;        (je 404 "not_found" "No doc with id: " docid)))
-  ;    (j3 404 "not_found" (str "No database: " db))))
-  ;
-  ;; create unkeyed doc
-  ;(POST "/:db" [db]
-  ;  (if-let [db (get-in @state [:dbs db])]
-  ;    (let [doc json-params
-  ;          doc (contains? doc "_id") doc (assoc doc "_id" (uuid-gen))]
-  ;      (let [resp (data/db-put state doc)
-  ;            resp (assoc resp "ok" true)]
-  ;        (jr 201 resp {"Location" (format "/%s/%s" db (get doc "_id"))})))
-  ;    (je 404 "not_found" (str "no database: " db))))
-  ;
+
+  ; get doc
+  (GET "/:dbid/:docid" {{:strs [dbid docid rev attachements conflicts]}}
+    (let [{:keys [no-db no-doc del-doc doc]} (data/db-doc-get state dbid docid
+                                               {:rev rev
+                                                :attachements attachements
+                                                :conflicts conflicts})]
+      (cond
+        no-db   (je-no-db dbid)
+        no-doc  (je-no-doc docid)
+        del-doc (je 404 "not_found" (format "Deleted doc with id: %s" docid))
+        doc     (jr 200 doc))))
+
+  ; create unkeyed doc
+  (POST "/:dbid" {{doc :json-params dbid "dbid"} :params}
+    (let [{:keys [no-db bad-doc doc]} (data/db-doc-post state dbid doc)]
+      (cond
+        no-db (je-no-db dbid)
+        bad-doc (je 400 "bad_request" "Request body must be a JSON object")
+        doc (jr 201 (assoc doc "ok" true)
+                    {"Location" (format "/%s/%s" dbid (doc "_id"))}))))
+
   ;; created keyed doc or update doc
   ;(PUT "/:db/:docid" [db docid]
   ;  (if-let [db (get-in @state [:dbs db])]
