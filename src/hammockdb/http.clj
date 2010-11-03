@@ -88,7 +88,7 @@
       doc     (jr 200 doc)))
 
   ; create unkeyed doc
-  (POST "/:dbid" {{body :json-params dbid "dbid"} :params}
+  (POST "/:dbid" {body :json-params {dbid "dbid"} :params}
     (switch (data/doc-post! ident dbid body)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
@@ -96,7 +96,7 @@
                   {"Location" (format "/%s/%s" dbid (doc "_id"))})))
 
   ; created keyed doc or update doc
-  (PUT "/:dbid/:docid" {{body :json-params dbid "dbid" docid "docid"} :params}
+  (PUT "/:dbid/:docid" {body :json-params {dbid "dbid" docid "docid"} :params}
     (switch (data/doc-put! ident dbid docid body)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
