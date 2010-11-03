@@ -10,3 +10,7 @@
 
 (defn update [o k & args]
   (update-in o [k] args))
+
+(defmacro if-not-let [[as to] n y]
+  `(let [~as ~to]
+     (if ~as ~y ~n)))

@@ -1,5 +1,5 @@
 (ns hammockdb.data
-  (:use [hammockdb.util :only (update)])
+  (:use [hammockdb.util :only (update if-not-let)])
   (:require [hammockdb.util :as util])
   (:import java.util.UUID))
 
