@@ -1,6 +1,6 @@
 (ns hammockdb.util-test
-  (:require [hammockdb.util :as util])
-  (:use clojure.test))
+  (:use clojure.test)
+  (:require [hammockdb.util :as util]))
 
 (deftest test-parse-int
   (is (= 3 (util/parse-int "3"))))
