@@ -53,7 +53,7 @@
 
   ; list dbs
   (GET "/_all_dbs" []
-    (switch (data/db-index @i)
+    (switch (data/db-index @ident)
       dbids (jr 200 dbids)))
 
   ; create db
@@ -103,7 +103,7 @@
     (switch (db-doc-delete! ident dbid docid rev)
       no-db (je-no-db dbid)
       no-doc (je-no-doc docid)
-      doc (jr 200 (assoc doc "ok" true))))
+      doc (jr 200 {"ok" true "rev" (get doc "_rev")})))
 
 ; middlewares
 (defn wrap-internal-error [handler]
