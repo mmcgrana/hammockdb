@@ -135,7 +135,7 @@
   [state dbid docid body & [opts]]
   (if-not-let [db (get state dbid)]
     {:no-db true}
-    (let [new-seq (inc (:sec db))]
+    (let [new-seq (inc (:seq db))]
       (if-let [doc (get-in db [:by-docid docid])]
         (let [res (doc-update doc body opts)]
           (if-not-let [update (:update res)]
