@@ -9,7 +9,7 @@
   (:require [hammockdb.data :as data]))
 
 ; server identity
-(defonce ident (atom {}))
+(defonce ident (data/ident-new))
 
 ; json requests and responses
 (defn jbody? [data]

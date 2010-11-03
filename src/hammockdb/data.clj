@@ -4,6 +4,9 @@
   (:require [clojure.string :as str])
   (:import java.util.UUID))
 
+(defn ident-new []
+  (atom {}))
+
 (defn set-fn [pure-write]
   (fn [ident & args]
     (let [state @ident
