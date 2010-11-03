@@ -1,6 +1,7 @@
 (ns hammockdb.data
   (:use [hammockdb.util :only (update if-not-let)])
   (:require [hammockdb.util :as util])
+  (:require [clojure.string :as str])
   (:import java.util.UUID))
 
 (defn set-fn [pure-write]
@@ -55,7 +56,7 @@
 (defn db-delete
   "no-db, ok"
   [state dbid]
-  (if-not-let [db (get state* dbid)]
+  (if-not-let [db (get state dbid)]
     [nil {:no-db true}]
     [(dissoc state dbid) {:ok true}]))
 
@@ -68,12 +69,12 @@
   (some
     (fn [[k v]]
       (and (.startsWith k "_") (not (doc-special-keys k)))
-        {:invalid-key k}))
+        {:invalid-key k})
     body))
 
 (defn doc-new-rev [& [old-rev]]
   (if old-rev
-    (let [num (util/parse-int (first (str/split old-rev "-")))]
+    (let [num (util/parse-int (first (str/split old-rev #"\-")))]
       (str (inc num) "-" (uuid)))
     (str 1 "-" (uuid))))
 
@@ -105,10 +106,10 @@
     (fn [doc] (and (= rev (:rev doc)) doc))
     (:conflicts doc)))
 
-(def doc-conflict-revs [doc]
+(defn doc-conflict-revs [doc]
   (map :rev (or (:conflicts doc))))
 
-(defn doc-inflate-body [doc opts]
+(defn doc-inflate [doc opts]
   (if (and (:rev opts) (not= (:rev opts) (:rev doc)))
     (doc-inflate (doc-find-rev doc (:rev opts)))
     (let [doci {"_rev" (:rev doc) "_id" (:id doc)}
@@ -161,9 +162,9 @@
 (defn doc-post
   "no-db, bad-doc, doc"
   [state dbid body]
-  (let [docid (or (get doc "_id") (uuid))
-        doc (assoc doc "_id" docid)]
-    (doc-put state dbid docid doc)))
+  (let [docid (or (get body "_id") (uuid))
+        body (assoc body "_id" docid)]
+    (doc-put state dbid docid body)))
 
 (def doc-post! (set-fn doc-post))
 

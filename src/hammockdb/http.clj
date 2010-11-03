@@ -75,8 +75,8 @@
       ok (jr 200 {"ok" true})))
 
   ; get doc
-  (GET "/:dbid/:docid" {{:strs [dbid docid rev attachements conflicts]}}
-    (switch (data/db-doc-get @ident dbid docid
+  (GET "/:dbid/:docid" {{:strs [dbid docid rev attachements conflicts]} :params}
+    (switch (data/doc-get @ident dbid docid
               {:rev rev :attachements attachements :conflicts conflicts})
       no-db   (je-no-db dbid)
       no-doc  (je-no-doc docid)
@@ -85,7 +85,7 @@
 
   ; create unkeyed doc
   (POST "/:dbid" {{body :json-params dbid "dbid"} :params}
-    (switch (data/db-doc-post! ident dbid body)
+    (switch (data/doc-post! ident dbid body)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
       doc (jr 201 (assoc doc "ok" true)
@@ -93,17 +93,17 @@
 
   ; created keyed doc or update doc
   (PUT "/:dbid/:docid" {{body :json-params dbid "dbid" docid "docid"} :params}
-    (switch (data/db-doc-put! ident dbid docid body)
+    (switch (data/doc-put! ident dbid docid body)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
-      doc (jr 201 doc {"Location" (format "/%s/%s" db docid)})))
+      doc (jr 201 doc {"Location" (format "/%s/%s" dbid docid)})))
 
   ; delete doc
   (DELETE "/:dbid/:docid" {{:strs [dbid docid rev]} :params}
-    (switch (db-doc-delete! ident dbid docid rev)
+    (switch (data/doc-delete! ident dbid docid rev)
       no-db (je-no-db dbid)
       no-doc (je-no-doc docid)
-      doc (jr 200 {"ok" true "rev" (get doc "_rev")})))
+      doc (jr 200 {"ok" true "rev" (get doc "_rev")}))))
 
 ; middlewares
 (defn wrap-internal-error [handler]
