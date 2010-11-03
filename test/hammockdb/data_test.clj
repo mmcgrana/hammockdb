@@ -9,7 +9,7 @@
     (is (= :v ret))
     (is (= {:k :v} @ident))))
 
-(deftest test-db-lifecycle
+(deftest test-db-put
   (let [state {}]
     (is (= {:dbids []} (data/db-list state)))
     (let [[ret state] (data/db-put state "db1")]
@@ -17,11 +17,15 @@
       (is (= {:dbids ["db1"]} (data/db-list state)))
       (let [[ret state] (data/db-put state "db2")]
         (is (:db ret))
-        (is (= (set ["db1" "db2"]) (set (:dbids (data/db-list state)))))))))
+        (is (= (set ["db1" "db2"]) (set (:dbids (data/db-list state)))))
+        (let [[ret state] (data/db-put state "db1")]
+          (is (:existing-db ret))
+          (is (nil? state)))))))
 
-(deftest test-put-existing-db
+(deftest test-db-get
   (let [state (data/state-new)
         [_ state] (data/db-put state "db1")
-        [ret state] (data/db-put state "db1")]
-    (is (:existing-db ret))
-    (is (nil? state))))
+        ret1 (data/db-get state "db1")
+        ret2 (data/db-get state "db2")]
+    (is (= "db1" (get-in ret1 [:db "db_name"])))
+    (is (:no-db ret2))))
