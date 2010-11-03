@@ -60,8 +60,8 @@
   "no-db, ok"
   [state dbid]
   (if-not-let [db (get state dbid)]
-    [nil {:no-db true}]
-    [(dissoc state dbid) {:ok true}]))
+    [{:no-db true} nil]
+    [{:ok true} (dissoc state dbid)]))
 
 (def db-delete! (set-fn db-delete))
 

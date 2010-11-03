@@ -29,3 +29,13 @@
         ret2 (data/db-get state "db2")]
     (is (= "db1" (get-in ret1 [:db "db_name"])))
     (is (:no-db ret2))))
+
+(deftest test-db-delete
+  (let [state (data/state-new)
+        [_ state] (data/db-put state "db1")
+        [ret state] (data/db-delete state "db1")]
+    (is (:ok ret))
+    (is (= [] (:dbids (data/db-list state))))
+    (let [[ret state] (data/db-delete state "db1")]
+      (is (:no-db ret))
+      (is (nil? state)))))
