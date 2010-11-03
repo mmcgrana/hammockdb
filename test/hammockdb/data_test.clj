@@ -11,10 +11,17 @@
 
 (deftest test-db-lifecycle
   (let [state {}]
-    (is (= {:dbids []} (data/db-index state)))
+    (is (= {:dbids []} (data/db-list state)))
     (let [[ret state] (data/db-put state "db1")]
       (is (= {:db {:seq 0 :doc-count 0 :by-docid {} :by-seq {}}} ret))
-      (is (= {:dbids ["db1"]} (data/db-index state)))
+      (is (= {:dbids ["db1"]} (data/db-list state)))
       (let [[ret state] (data/db-put state "db2")]
         (is (:db ret))
-        (is (= (set ["db1" "db2"]) (set (:dbids (data/db-index state)))))))))
+        (is (= (set ["db1" "db2"]) (set (:dbids (data/db-list state)))))))))
+
+(deftest test-put-existing-db
+  (let [state (data/state-new)
+        [_ state] (data/db-put state "db1")
+        [ret state] (data/db-put state "db1")]
+    (is (:existing-db ret))
+    (is (nil? state))))

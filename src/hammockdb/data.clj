@@ -4,8 +4,8 @@
   (:require [clojure.string :as str])
   (:import java.util.UUID))
 
-(defn ident-new []
-  (atom {}))
+(defn state-new [] {})
+(defn ident-new [] (atom (state-new)))
 
 (defn set-fn [pure-write]
   (fn [ident & args]
@@ -27,7 +27,7 @@
    :by-docid {}
    :by-seq {}})
 
-(defn db-index
+(defn db-list
   "dbids"
   [state]
   {:dbids (or (keys state) [])})
@@ -36,7 +36,7 @@
   "existing-db, db"
   [state dbid]
   (if (get state dbid)
-    [nil {:existing-db true}]
+    [{:existing-db true} nil]
     (let [db (db-new dbid)]
       [{:db db} (assoc state dbid db)])))
 

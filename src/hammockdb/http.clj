@@ -57,7 +57,7 @@
 
   ; list dbs
   (GET "/_all_dbs" []
-    (switch (data/db-index @ident)
+    (switch (data/db-list @ident)
       dbids (jr 200 dbids)))
 
   ; create db
