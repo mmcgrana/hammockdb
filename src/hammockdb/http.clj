@@ -39,9 +39,13 @@
 
   ; config stubs
   (POST "/:db/_ensure_full_commit" [] (jr 200 {"ok" true}))
-  (POST "/_restart" [] (jr 200 {"ok" true}))
   (PUT "/_config/*" [] (jr 200 {"ok" true}))
   (GET "/_config/*" [] (jr 200 {"ok" true}))
+
+  ; abuse restart to clear state
+  (POST "/_restart" []
+    (swap! ident (constantly {}))
+    (jr 200 {"ok" true}))
 
   ; uuid service
   (GET "/_uuids" {{c "count"} :params}
