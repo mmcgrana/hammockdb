@@ -6,7 +6,7 @@
 (defn set-fn [pure-write]
   (fn [ident & args]
     (let [state @ident
-          [state-new ret] (apply write-fn state args)]
+          [state-new ret] (apply pure-write state args)]
       (when state-new
         (assert (compare-and-set! ident state state-new)))
       ret)))
@@ -59,7 +59,7 @@
     [nil {:no-db true}]
     [(dissoc state dbid) {:ok true}]))
 
-(def db-delete! (write-fn db-delete))
+(def db-delete! (set-fn db-delete))
 
 (def doc-special-keys
   #{"_id" "_rev" "_deleted" "_attachments"})
@@ -156,7 +156,7 @@
                    {:id docid :rev (:rev doc)})]
           [db doc])))))
 
-(def doc-put! (write-fn doc-put))
+(def doc-put! (set-fn doc-put))
 
 (defn doc-post
   "no-db, bad-doc, doc"
@@ -165,7 +165,7 @@
         doc (assoc doc "_id" docid)]
     (doc-put state dbid docid doc)))
 
-(def doc-post! (write-fn doc-post))
+(def doc-post! (set-fn doc-post))
 
 (defn doc-delete
   "no-db, no-doc, doc"
@@ -175,4 +175,4 @@
         db (update db :doc-count dec)]
     [db doc]))
 
-(def doc-delete! (write-fn doc-delete))
+(def doc-delete! (set-fn doc-delete))
