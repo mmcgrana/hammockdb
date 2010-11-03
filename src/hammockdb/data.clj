@@ -134,12 +134,12 @@
   "no-db, bad-doc, doc"
   [state dbid docid body & [opts]]
   (if-not-let [db (get state dbid)]
-    {:no-db true}
+    [nil {:no-db true}]
     (let [new-seq (inc (:seq db))]
       (if-let [doc (get-in db [:by-docid docid])]
         (let [res (doc-update doc body opts)]
           (if-not-let [update (:update res)]
-            {:bad-doc true}
+            [nil {:bad-doc true}]
             (let [doc (:doc update)
                   doc (assoc doc :seq new-seq)
                   db (if-let [old-seq (:old-seq (:r update))]
