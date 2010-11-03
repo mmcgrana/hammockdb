@@ -19,7 +19,7 @@
 
 (defn db-new [dbid]
   {:seq 0
-   :doc-count
+   :doc-count 0
    :by-docid {}
    :by-seq {}})
 
