@@ -1,4 +1,5 @@
 (ns hammockdb.data
+  (:use [hammockdb.util :only (update)])
   (:require [hammockdb.util :as util])
   (:import java.util.UUID))
 
@@ -141,17 +142,17 @@
             (let [doc (:doc update)
                   doc (assoc doc :seq new-seq)
                   db (if-let [old-seq (:old-seq (:r update))]
-                       (update-in db [:by-seq] assoc old-seq nil)
+                       (update db :by-seq assoc old-seq nil)
                        db)
                   db (assoc db :seq new-seq)
-                  db (update-in db [:by-seq] assoc new-seq (:info (:r update)))]
+                  db (update db :by-seq assoc new-seq (:info (:r update)))]
               [db doc])))
         (let [doc (doc-new docid body)
               doc (assoc doc :seq new-seq)
               db (assoc db :seq new-seq)
-              db (update-in db [:doc-count] inc)
-              db (update-in db [:by-docid] assoc docid doc)
-              db (update-in db [:by-seq] assoc new-seq
+              db (update db :doc-count inc)
+              db (update db :by-docid assoc docid doc)
+              db (update db :by-seq assoc new-seq
                    {:id docid :rev (:rev doc)})]
           [db doc])))))
 
@@ -171,7 +172,7 @@
   [state dbid docid rev]
   (let [body {"_id" docid "_rev" rev "_deleted" true}
         [db doc] (doc-put state dbid docid body)
-        db (update-in db :doc-count dec)]
+        db (update db :doc-count dec)]
     [db doc]))
 
 (def doc-delete! (write-fn doc-delete))

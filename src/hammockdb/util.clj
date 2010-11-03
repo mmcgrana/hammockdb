@@ -7,3 +7,6 @@
   `(let [{:keys ~(vec (take-nth 2 cases))} ~data]
     (cond
       ~@cases)))
+
+(defn update [o k & args]
+  (update-in o [k] args))
