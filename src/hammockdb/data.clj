@@ -138,7 +138,7 @@
       (if-let [doc (get-in db [:by-docid docid])]
         (let [res (doc-update doc body opts)]
           (if-not-let [update (:update res)]
-            res
+            {:bad-doc true}
             (let [doc (:doc update)
                   doc (assoc doc :seq new-seq)
                   db (if-let [old-seq (:old-seq (:r update))]
