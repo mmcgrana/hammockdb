@@ -39,3 +39,7 @@
     (let [[ret state] (data/db-delete state "db1")]
       (is (:no-db ret))
       (is (nil? state)))))
+
+(deftest test-doc-validate-keys
+  (is (nil? (data/doc-validate-keys {"foo" "bar"})))
+  (is (= {:invalid-key "_wot"} (data/doc-validate-keys {"_wot" "bat"}))))

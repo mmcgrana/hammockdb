@@ -71,8 +71,8 @@
 (defn doc-validate-keys [body]
   (some
     (fn [[k v]]
-      (and (.startsWith k "_") (not (doc-special-keys k)))
-        {:invalid-key k})
+      (if (and (.startsWith k "_") (not (doc-special-keys k)))
+        {:invalid-key k}))
     body))
 
 (defn doc-new-rev [& [old-rev]]
@@ -102,7 +102,7 @@
             {:update {:doc doc :r r}}))))))
 
 (defn doc-new [docid body]
-  (:doc (:update (doc-update {:id docid :conflicts []} body))))
+  (util/check (:doc (:update (doc-update {:id docid :conflicts []} body)))))
 
 (defn doc-find-rev [doc rev]
   (some
@@ -110,7 +110,7 @@
     (:conflicts doc)))
 
 (defn doc-conflict-revs [doc]
-  (map :rev (or (:conflicts doc))))
+  (map :rev (:conflicts doc)))
 
 (defn doc-inflate [doc opts]
   (if (and (:rev opts) (not= (:rev opts) (:rev doc)))
@@ -142,7 +142,7 @@
       (if-let [doc (get-in db [:by-docid docid])]
         (let [res (doc-update doc body opts)]
           (if-not-let [update (:update res)]
-            [nil {:bad-doc true}]
+            [{:bad-doc true} nil]
             (let [doc (:doc update)
                   doc (assoc doc :seq new-seq)
                   db (if-let [old-seq (:old-seq (:r update))]
@@ -150,7 +150,7 @@
                        db)
                   db (assoc db :seq new-seq)
                   db (update db :by-seq assoc new-seq (:info (:r update)))]
-              [db doc])))
+              [doc db])))
         (let [doc (doc-new docid body)
               doc (assoc doc :seq new-seq)
               db (assoc db :seq new-seq)
@@ -158,7 +158,7 @@
               db (update db :by-docid assoc docid doc)
               db (update db :by-seq assoc new-seq
                    {:id docid :rev (:rev doc)})]
-          [db doc])))))
+          [doc db])))))
 
 (def doc-put! (set-fn doc-put))
 
