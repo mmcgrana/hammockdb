@@ -62,7 +62,7 @@
 
   ; create db
   (PUT "/:dbid" [dbid]
-    (switch (data/db-create! ident dbid)
+    (switch (data/db-put! ident dbid)
       existing-db (je 412 "db_exists" "The database already exists")
       db (jr 201 {"ok" true} {"Location" (format "/%s" dbid)})))
 

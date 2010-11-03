@@ -7,7 +7,7 @@
 (defn set-fn [pure-write]
   (fn [ident & args]
     (let [state @ident
-          [state-new ret] (apply pure-write state args)]
+          [ret state-new] (apply pure-write state args)]
       (when state-new
         (assert (compare-and-set! ident state state-new)))
       ret)))
@@ -29,15 +29,15 @@
   [state]
   {:dbids (or (keys state) [])})
 
-(defn db-create
+(defn db-put
   "existing-db, db"
   [state dbid]
   (if (get state dbid)
     [nil {:existing-db true}]
     (let [db (db-new dbid)]
-      [(assoc state dbid db) {:db db}])))
+      [{:db db} (assoc state dbid db)])))
 
-(def db-create! (set-fn db-create))
+(def db-put! (set-fn db-put))
 
 (defn db-inflate [db dbid]
   {"db_name" dbid
