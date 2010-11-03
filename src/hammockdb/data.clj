@@ -2,17 +2,13 @@
   (:require [hammockdb.util :as util])
   (:import java.util.UUID))
 
-(defn write-fn [pure-write]
-  (fn [state & args]
-    (let [state* @state
-          [state** ret] (apply write-fn @state args)]
-      (when state**
-        (assert (compare-and-set! state state* state**)))
+(defn set-fn [pure-write]
+  (fn [ident & args]
+    (let [state @ident
+          [state-new ret] (apply write-fn state args)]
+      (when state-new
+        (assert (compare-and-set! ident state state-new)))
       ret)))
-
-(defn read-fn [pure-read]
-  (fn [state & args]
-    (apply pure-read @state args)))
 
 (defn uuid []
   (str (UUID/randomUUID)))
@@ -26,45 +22,43 @@
    :by_docid {}
    :by_seq {}})
 
-(defn db-index*
+(defn db-index
   "dbids"
-  [state*]
-  {:dbids (or (keys state*) [])})
+  [state]
+  {:dbids (or (keys state) [])})
 
-(def db-index (read-fn db-index))
-
-(defn db-create*
+(defn db-create
   "existing-db, db"
-  [state* dbid]
-  (if (get state* dbid)
+  [state dbid]
+  (if (get state dbid)
     [nil {:existing-db true}]
     (let [db (db-new dbid)]
-      [(assoc state* dbid db) {:db db}])))
+      [(assoc state dbid db) {:db db}])))
 
-(def db-create (write-fn db-create*))
+(def db-create! (set-fn db-create))
 
 (defn db-inflate [db dbid]
   {"db_name" dbid
    "doc_count" (count db)
    "doc_size" (* 339.2 (count db))})
 
-(defn db-get*
+(defn db-get
   "no-db, db"
-  [state* dbid]
-  (if-not-let [db (get state* dbid)]
+  [state dbid]
+  (if-not-let [db (get state dbid)]
     {:no-db true}
     {:db (db-inflate db dbid)}))
 
-(def db-get (read-fn db-get*))
+(def db-get (read-fn db-get))
 
-(defn db-delete*
+(defn db-delete
   "no-db, ok"
-  [state* dbid]
+  [state dbid]
   (if-not-let [db (get state* dbid)]
     [nil {:no-db true}]
-    [(dissoc state* dbid) {:ok true}]))
+    [(dissoc state dbid) {:ok true}]))
 
-(def db-delete (write-fn db-delete*))
+(def db-delete! (write-fn db-delete))
 
 (def doc-special-keys
   #{"_id" "_rev" "_deleted" "_attachments"})
@@ -122,10 +116,10 @@
                  doci)]
       (merge (:body doc) doci))))
 
-(defn doc-get*
+(defn doc-get
   "no-db, no-doc, del-doc, doc"
-  [state* dbid docid & [opts]]
-  (if-not-let [db (get state* dbid)]
+  [state dbid docid & [opts]]
+  (if-not-let [db (get state dbid)]
     {:no-db true}
     (if-not-let [doc (get (:by-docid db) docid)]
       {:no-doc true}
@@ -133,12 +127,10 @@
         {:del-doc true}
         {:doc (doc-inflate doc opts)}))))
 
-(def doc-get (read-fn doc-get*))
-
-(defn doc-put*
+(defn doc-put
   "no-db, bad-doc, doc"
-  [state* dbid docid body & [opts]]
-  (if-not-let [db (get state* dbid)]
+  [state dbid docid body & [opts]]
+  (if-not-let [db (get state dbid)]
     {:no-db true}
     (let [new-seq (inc (:sec db))]
       (if-let [doc (get (:by-docid db) docid)]
@@ -162,24 +154,24 @@
                    {:id docid :rev (:rev doc)})]
           [db doc])))))
 
-(def doc-put (write-fn doc-put*))
+(def doc-put! (write-fn doc-put))
 
-(defn doc-post*
+(defn doc-post
   "no-db, bad-doc, doc"
-  [state* dbid doc]
+  [state dbid doc]
   (let [docid (or (get doc "_id") (uuid))
         doc (assoc doc "_id" docid)]
-    (doc-put* state* dbid docid doc)))
+    (doc-put state dbid docid doc)))
 
-(def doc-post (write-fn doc-post*))
+(def doc-post! (write-fn doc-post))
 
-(defn doc-delete*
+(defn doc-delete
   "no-db, no-doc, doc"
-  [state* dbid docid rev]
-  (if-not-let [db (get state* dbid)]
+  [state dbid docid rev]
+  (if-not-let [db (get state dbid)]
     {:no-db true}
     (if-not-let [doc (get db docid)]
       {:no-doc true}
       ())))
 
-(def doc-delete (write-fn doc-delete*))
+(def doc-delete! (write-fn doc-delete))
