@@ -14,6 +14,3 @@
 (defmacro if-not-let [[as to] n y]
   `(let [~as ~to]
      (if ~as ~y ~n)))
-
-(defn check [v]
-  (assert v) v)

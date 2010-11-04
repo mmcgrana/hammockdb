@@ -98,9 +98,20 @@
 
 (deftest test-doc-put-no-db
   (let [state (data/state-new)]
-    (let [[ret stateb] (data/doc-put state "dbid" "doc1" {})]
+    (let [[ret state] (data/doc-put state "db1" "doc1" {})]
       (is (:no-db ret))
-      (is (nil? stateb)))))
+      (is (nil? state)))))
+
+(deftest test-doc-put-bad-doc-new
+  (let [state (data/state-new)
+        [_ state] (data/db-put state "db1")
+        [ret state] (data/doc-put state "db1" "doc1" {})]
+    (prn ret)
+    (prn state)
+    (is (:bad-doc ret))
+    (is (nil? state))))
+
+(deftest test-doc-put-bad-doc-existing)
 
 ; (deftest test-doc-find-rev-fail
 ;   (is (nil? (data/doc-find-rev {:conflicts [] :rev "foo"} "bar"))))

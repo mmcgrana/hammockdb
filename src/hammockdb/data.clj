@@ -103,7 +103,7 @@
             {:update {:doc doc :info info}}))))))
 
 (defn doc-new [docid body]
-  (util/check (:doc (:update (doc-update {:id docid :conflicts []} body)))))
+  (:doc (:update (doc-update {:id docid :conflicts []} body))))
 
 (defn doc-put
   "no-db, bad-doc, doc"
@@ -123,14 +123,15 @@
                   db (assoc db :seq new-seq)
                   db (update-at db :by-seq assoc new-seq (:info update))]
               [doc db])))
-        (let [doc (doc-new docid body)
-              doc (assoc doc :seq new-seq)
-              db (assoc db :seq new-seq)
-              db (update-at db :doc-count inc)
-              db (update-at db :by-docid assoc docid doc)
-              db (update-at db :by-seq assoc new-seq
-                   {:id docid :rev (:rev doc)})]
-          [doc db])))))
+        (if-not-let [doc (doc-new docid body)]
+          [{:bad-doc true} nil]
+          (let [doc (assoc doc :seq new-seq)
+                db (assoc db :seq new-seq)
+                db (update-at db :doc-count inc)
+                db (update-at db :by-docid assoc docid doc)
+                db (update-at db :by-seq assoc new-seq
+                     {:id docid :rev (:rev doc)})]
+            [doc db]))))))
 
 (def doc-put! (set-fn doc-put))
 
@@ -181,3 +182,4 @@
       (if (:deleted doc)
         {:del-doc true}
         {:doc (doc-inflate doc opts)}))))
+
