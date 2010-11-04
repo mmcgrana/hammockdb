@@ -1,5 +1,5 @@
 (ns hammockdb.data
-  (:use [hammockdb.util :only (update if-not-let)])
+  (:use [hammockdb.util :only (update-at if-not-let)])
   (:require [hammockdb.util :as util])
   (:require [clojure.string :as str])
   (:import java.util.UUID))
@@ -84,7 +84,7 @@
 (defn doc-update
   "id-mismatch, write-conflict, rev-mismatch, invalid-key, update"
   [doc body & [opts]]
-  (if (not= (body "_id") (:id doc))
+  (if (or (not (get body "_id")) (not= (get body "_id") (:id doc)))
     {:id-mismatch true}
     (if (and (not (:delected doc))
              (:rev doc)
@@ -96,13 +96,62 @@
           (let [rev (if (:rev doc) (doc-new-rev (:rev doc))
                                    (or (body "_rev") (doc-new-rev)))
                 deleted (body "_deleted")
-                r {:info {:id (:id doc) :rev rev}}
-                r (if (:seq doc) (assoc r :old-seq (:seq doc)) r)
+                info {:id (:id doc) :rev rev}
+                info (if (:seq doc) (assoc info :seq (:seq doc)) info)
+                body (assoc body "_id" (:id doc) "_rev" rev)
                 doc (assoc doc :rev rev :deleted deleted :body body)]
-            {:update {:doc doc :r r}}))))))
+            {:update {:doc doc :info info}}))))))
 
 (defn doc-new [docid body]
   (util/check (:doc (:update (doc-update {:id docid :conflicts []} body)))))
+
+(defn doc-put
+  "no-db, bad-doc, doc"
+  [state dbid docid body & [opts]]
+  (if-not-let [db (get state dbid)]
+    [{:no-db true} nil]
+    (let [new-seq (inc (:seq db))]
+      (if-let [doc (get-in db [:by-docid docid])]
+        (let [res (doc-update doc body opts)]
+          (if-not-let [update (:update res)]
+            [{:bad-doc true} nil]
+            (let [doc (:doc update)
+                  doc (assoc doc :seq new-seq)
+                  db (if-let [old-seq (:old-seq (:info update))]
+                       (update-at db :by-seq assoc old-seq nil)
+                       db)
+                  db (assoc db :seq new-seq)
+                  db (update-at db :by-seq assoc new-seq (:info update))]
+              [doc db])))
+        (let [doc (doc-new docid body)
+              doc (assoc doc :seq new-seq)
+              db (assoc db :seq new-seq)
+              db (update-at db :doc-count inc)
+              db (update-at db :by-docid assoc docid doc)
+              db (update-at db :by-seq assoc new-seq
+                   {:id docid :rev (:rev doc)})]
+          [doc db])))))
+
+(def doc-put! (set-fn doc-put))
+
+(defn doc-post
+  "no-db, bad-doc, doc"
+  [state dbid body]
+  (let [docid (or (get body "_id") (uuid))
+        body (assoc body "_id" docid)]
+    (doc-put state dbid docid body)))
+
+(def doc-post! (set-fn doc-post))
+
+(defn doc-delete
+  "no-db, no-doc, doc"
+  [state dbid docid rev]
+  (let [body {"_id" docid "_rev" rev "_deleted" true}
+        [db doc] (doc-put state dbid docid body)
+        db (update-at db :doc-count dec)]
+    [db doc]))
+
+(def doc-delete! (set-fn doc-delete))
 
 (defn doc-find-rev [doc rev]
   (some
@@ -132,51 +181,3 @@
       (if (:deleted doc)
         {:del-doc true}
         {:doc (doc-inflate doc opts)}))))
-
-(defn doc-put
-  "no-db, bad-doc, doc"
-  [state dbid docid body & [opts]]
-  (if-not-let [db (get state dbid)]
-    [nil {:no-db true}]
-    (let [new-seq (inc (:seq db))]
-      (if-let [doc (get-in db [:by-docid docid])]
-        (let [res (doc-update doc body opts)]
-          (if-not-let [update (:update res)]
-            [{:bad-doc true} nil]
-            (let [doc (:doc update)
-                  doc (assoc doc :seq new-seq)
-                  db (if-let [old-seq (:old-seq (:r update))]
-                       (update db :by-seq assoc old-seq nil)
-                       db)
-                  db (assoc db :seq new-seq)
-                  db (update db :by-seq assoc new-seq (:info (:r update)))]
-              [doc db])))
-        (let [doc (doc-new docid body)
-              doc (assoc doc :seq new-seq)
-              db (assoc db :seq new-seq)
-              db (update db :doc-count inc)
-              db (update db :by-docid assoc docid doc)
-              db (update db :by-seq assoc new-seq
-                   {:id docid :rev (:rev doc)})]
-          [doc db])))))
-
-(def doc-put! (set-fn doc-put))
-
-(defn doc-post
-  "no-db, bad-doc, doc"
-  [state dbid body]
-  (let [docid (or (get body "_id") (uuid))
-        body (assoc body "_id" docid)]
-    (doc-put state dbid docid body)))
-
-(def doc-post! (set-fn doc-post))
-
-(defn doc-delete
-  "no-db, no-doc, doc"
-  [state dbid docid rev]
-  (let [body {"_id" docid "_rev" rev "_deleted" true}
-        [db doc] (doc-put state dbid docid body)
-        db (update db :doc-count dec)]
-    [db doc]))
-
-(def doc-delete! (set-fn doc-delete))

@@ -11,8 +11,8 @@
       bar "bar"
       foo (str foo "!")))))
 
-(deftest test-update
-  (is (= {:foo 2} (util/update {:foo 1} :foo inc))))
+(deftest test-update-at
+  (is (= {:foo 2} (util/update-at {:foo 1} :foo inc))))
 
 (deftest test-if-not-let
   (is (= :yes (util/if-not-let [foo "f"] :no :yes)))

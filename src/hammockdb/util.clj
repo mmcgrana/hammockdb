@@ -8,7 +8,7 @@
     (cond
       ~@cases)))
 
-(defn update [o k f & args]
+(defn update-at [o k f & args]
   (apply update-in o [k] f args))
 
 (defmacro if-not-let [[as to] n y]
