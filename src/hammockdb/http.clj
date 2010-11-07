@@ -27,7 +27,7 @@
   (je 404 "not_found" (format "No database: %s" dbid)))
 
 (defn je-no-doc [docid]
-  (je 404 "not_found" "No doc with id: " docid))
+  (je 404 "not_found" (format "No doc with id: %s" docid)))
 
 (defn je-bad-doc []
   (je 400 "bad_request" "Request body must be a JSON object"))
@@ -60,6 +60,12 @@
     (switch (data/db-list @ident)
       dbids (jr 200 dbids)))
 
+ ; get db info
+  (GET "/:dbid" [dbid]
+    (switch (data/db-get @ident dbid)
+      no-db (je-no-db dbid)
+      db (jr 200 db)))
+
   ; create db
   (PUT "/:dbid" [dbid]
     (switch (data/db-put! ident dbid)
@@ -72,11 +78,12 @@
       no-db (je-no-db dbid)
       ok (jr 200 {"ok" true})))
 
-  ; get db info
-  (GET "/:dbid" [dbid]
-    (switch (data/db-get @ident dbid)
-      no-db (je-no-db dbid)
-      db (jr 200 db)))
+  ; get doc
+  (GET "/:dbid/:docid" {{:strs [dbid docid]} :params}
+    (switch (data/doc-get @ident dbid docid)
+      no-db   (je-no-db dbid)
+      no-doc  (je-no-doc docid)
+      doc     (jr 200 doc)))
 
   ; create unkeyed doc
   (POST "/:dbid/" {new-doc :json-params {dbid "dbid"} :params}
@@ -87,8 +94,8 @@
 
   ; created keyed doc or update doc
   (PUT "/:dbid/:docid" {new-doc :json-params
-                        {dbid "dbid" docid "docid"} :params}
-    (switch (data/doc-put! ident dbid docid new-doc)
+                        {dbid "dbid" docid "docid" rev "rev"} :params}
+    (switch (data/doc-put! ident dbid docid new-doc rev)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
       conflict (je 408 "conflict" "Document update conflict")
@@ -100,14 +107,7 @@
       no-db (je-no-db dbid)
       no-doc (je-no-doc docid)
       conflict (je 408 "confilct" "Document deletion conflict.")
-      doc (jr 200 {"ok" true "rev" (get doc "_rev")})))
-
-  ; get doc
-  (GET "/:dbid/:docid" {{:strs [dbid docid]} :params}
-    (switch (data/doc-get @ident dbid docid)
-      no-db   (je-no-db dbid)
-      no-doc  (je-no-doc docid)
-      doc     (jr 200 doc))))
+      doc (jr 200 {"ok" true "rev" (get doc "_rev")}))))
 
 ; middlewares
 (defn wrap-internal-error [handler]

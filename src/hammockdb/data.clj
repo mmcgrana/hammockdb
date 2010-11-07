@@ -32,16 +32,6 @@
   [state]
   {:dbids (or (keys state) [])})
 
-(defn db-put
-  "existing-db, db"
-  [state dbid]
-  (if (get state dbid)
-    [{:existing-db true} nil]
-    (let [db (db-new dbid)]
-      [{:db db} (assoc state dbid db)])))
-
-(def db-put! (set-fn db-put))
-
 (defn db-inflate [db dbid]
   {"db_name" dbid
    "update_seq" (:seq db)
@@ -54,6 +44,16 @@
     {:no-db true}
     {:db (db-inflate db dbid)}))
 
+(defn db-put
+  "existing-db, db"
+  [state dbid]
+  (if (get state dbid)
+    [{:existing-db true} nil]
+    (let [db (db-new dbid)]
+      [{:db db} (assoc state dbid db)])))
+
+(def db-put! (set-fn db-put))
+
 (defn db-delete
   "no-db, ok"
   [state dbid]
@@ -62,6 +62,15 @@
     [{:ok true} (dissoc state dbid)]))
 
 (def db-delete! (set-fn db-delete))
+
+(defn doc-get
+  "no-db, no-doc, doc"
+  [state dbid docid]
+  (if-not-let [db (get state dbid)]
+    {:no-db true}
+    (if-not-let [doc (get (:by-docid db) docid)]
+      {:no-doc true}
+      {:doc doc :db db})))
 
 (defn doc-new-rev [& [old-rev]]
   (if old-rev
@@ -77,19 +86,18 @@
     (if (and rev (not= rev check-rev))
       {:conflict true}
       (let [new-rev (if rev (doc-new-rev rev) (doc-new-rev))
-            deleted (get new-doc "_deleted")
-            info {:id (get doc "_id") :rev rev :deleted deleted}
+            info {:id (get doc "_id") :rev rev}
             new-doc (assoc new-doc "_rev" new-rev)]
         {:update {:doc new-doc :info info}}))))
 
 (defn doc-put
-  "no-db, bad-doc, doc"
-  [state dbid docid new-doc]
+  "no-db, doc"
+  [state dbid docid new-doc rev]
   (if-not-let [db (get state dbid)]
     [{:no-db true} nil]
     (let [new-seq (inc (:seq db))]
       (if-let [doc (get-in db [:by-docid docid])]
-        (let [res (doc-update doc new-doc)]
+        (let [res (doc-update doc (assoc new-doc "_rev" rev))]
           (if-not-let [update (:update res)]
             [res nil]
             (let [db (assoc db :seq new-seq)
@@ -107,7 +115,7 @@
 (def doc-put! (set-fn doc-put))
 
 (defn doc-post
-  "no-db, bad-doc, doc"
+  "no-db, doc"
   [state dbid doc]
   (let [docid (or (get doc "_id") (uuid))
         doc (assoc doc "_id" docid)]
@@ -118,21 +126,19 @@
 (defn doc-delete
   "no-db, no-doc, conflict, doc"
   [state dbid docid rev]
-  (let [doc {"_id" docid "_rev" rev "_deleted" true}
-        [ret db] (doc-put state dbid docid doc)]
-    (if-not (:doc ret)
+  (let [ret (doc-get state dbid docid)]
+    (if-not-let [doc (:doc ret)]
       [ret nil]
-      (let [db (update-in db [dbid :doc-count] dec)
-            db (update-in db [dbid :by-docid] #(dissoc % docid))]
-        [ret db]))))
+      (if-not (= rev (get doc "_rev"))
+        [{:conflict true} nil]
+        (let [new-rev (doc-new-rev rev)
+              new-doc (assoc doc "_rev" new-rev "_deleted" true)
+              db (:db ret)
+              db (update-at db :seq inc)
+              db (update-at db :doc-count dec)
+              db (update-at db :by-docid dissoc docid)
+              db (update-at db :by-seq assoc (:seq db)
+                   {:id (get doc "_id") :rev new-rev :deleted true})]
+          [{:doc new-doc} (assoc state dbid db)])))))
 
 (def doc-delete! (set-fn doc-delete))
-
-(defn doc-get
-  "no-db, no-doc, doc"
-  [state dbid docid]
-  (if-not-let [db (get state dbid)]
-    {:no-db true}
-    (if-not-let [doc (get (:by-docid db) docid)]
-      {:no-doc true}
-      {:doc doc})))
