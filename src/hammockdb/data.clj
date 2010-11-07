@@ -63,6 +63,19 @@
 
 (def db-delete! (set-fn db-delete))
 
+(defn db-change-item [[seq info]]
+  (let [item {"seq" seq "id" (:id info) "changes" [{"rev" (:rev info)}]}]
+    (if (:deleted item)
+      (assoc item "deleted" true)
+      item)))
+
+(defn db-changes [state dbid]
+  (if-not-let [db (get state dbid)]
+    {:no-db true}
+    {:changes
+      {"results" (map db-change-item (sort-by :seq (:by-seq db)))
+       "last_seq" (:seq db)}}))
+
 (defn doc-get
   "no-db, no-doc, doc"
   [state dbid docid]
@@ -86,24 +99,24 @@
     (if (and rev (not= rev check-rev))
       {:conflict true}
       (let [new-rev (if rev (doc-new-rev rev) (doc-new-rev))
-            info {:id (get doc "_id") :rev rev}
+            info {:id (get doc "_id") :rev new-rev}
             new-doc (assoc new-doc "_rev" new-rev)]
         {:update {:doc new-doc :info info}}))))
 
 (defn doc-put
   "no-db, doc"
-  [state dbid docid new-doc rev]
+  [state dbid docid new-doc & [rev]]
   (if-not-let [db (get state dbid)]
     [{:no-db true} nil]
     (let [new-seq (inc (:seq db))]
       (if-let [doc (get-in db [:by-docid docid])]
-        (let [res (doc-update doc (assoc new-doc "_rev" rev))]
+        (let [res (doc-update doc new-doc)]
           (if-not-let [update (:update res)]
             [res nil]
             (let [db (assoc db :seq new-seq)
                   db (update-at db :by-docid assoc docid (:doc update))
                   db (update-at db :by-seq assoc new-seq (:info update))]
-              [{:doc (:doc update)} (assoc state dbid db)])))
+              [doc-update (assoc state dbid db)])))
         (let [update (:update (doc-update {"_id" docid}
                                           (assoc new-doc "_id" docid)))]
           (let [db (assoc db :seq new-seq)
@@ -117,9 +130,7 @@
 (defn doc-post
   "no-db, doc"
   [state dbid doc]
-  (let [docid (or (get doc "_id") (uuid))
-        doc (assoc doc "_id" docid)]
-    (doc-put state dbid docid doc)))
+  (doc-put state dbid (uuid) doc))
 
 (def doc-post! (set-fn doc-post))
 

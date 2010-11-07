@@ -78,6 +78,12 @@
       no-db (je-no-db dbid)
       ok (jr 200 {"ok" true})))
 
+  ; changes feed
+  (GET "/:dbid/_changes" [dbid]
+    (switch (data/db-changes @ident dbid)
+      no-db (je-no-db dbid)
+      changes (jr 200 changes)))
+
   ; get doc
   (GET "/:dbid/:docid" {{:strs [dbid docid]} :params}
     (switch (data/doc-get @ident dbid docid)
@@ -130,4 +136,4 @@
     wrap-stacktrace-log
     wrap-internal-error
     wrap-request-log
-    (wrap-reload '(hammockdb.http hammockdb.data))))
+    (wrap-reload '(hammockdb.data hammockdb.http))))
