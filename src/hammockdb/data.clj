@@ -25,7 +25,7 @@
   {:seq 0
    :doc-count 0
    :by-docid {}
-   :by-seq {}})
+   :by-seq (sorted-map)})
 
 (defn db-list
   "dbids"
@@ -63,18 +63,27 @@
 
 (def db-delete! (set-fn db-delete))
 
-(defn db-change-item [[seq info]]
-  (let [item {"seq" seq "id" (:id info) "changes" [{"rev" (:rev info)}]}]
-    (if (:deleted item)
-      (assoc item "deleted" true)
-      item)))
+(defn db-change-item [db [seq info] include-doc]
+  (let [docid (:id info)
+        item {"seq" seq "id" docid "changes" [{"rev" (:rev info)}]}
+        item (if (:deleted item)
+               (assoc item "deleted" true)
+               item)
+        item (if include-doc
+               (assoc item "doc" (get-in db [:by-docid docid]))
+               item)]
+    item))
 
-(defn db-changes [state dbid]
+(defn db-changes [state dbid include-docs since]
   (if-not-let [db (get state dbid)]
     {:no-db true}
+    (let [last-seq (:seq db)
+          index (:by-seq db)
+          elems (if since (subseq index >= since) index)
+          results (map #(db-change-item db % include-docs) elems)]
     {:changes
-      {"results" (map db-change-item (sort-by :seq (:by-seq db)))
-       "last_seq" (:seq db)}}))
+      {"results" results
+       "last_seq" last-seq}})))
 
 (defn doc-get
   "no-db, no-doc, doc"

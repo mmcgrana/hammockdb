@@ -79,8 +79,10 @@
       ok (jr 200 {"ok" true})))
 
   ; changes feed
-  (GET "/:dbid/_changes" [dbid]
-    (switch (data/db-changes @ident dbid)
+  (GET "/:dbid/_changes" {{dbid "dbid"
+                           include-docs "include_docs" s "since"} :params}
+    (switch (data/db-changes @ident dbid
+              include-docs (and s (util/parse-int s)))
       no-db (je-no-db dbid)
       changes (jr 200 changes)))
 
