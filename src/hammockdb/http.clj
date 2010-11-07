@@ -79,7 +79,7 @@
       db (jr 200 db)))
 
   ; create unkeyed doc
-  (POST "/:dbid" {new-doc :json-params {dbid "dbid"} :params}
+  (POST "/:dbid/" {new-doc :json-params {dbid "dbid"} :params}
     (switch (data/doc-post! ident dbid new-doc)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)

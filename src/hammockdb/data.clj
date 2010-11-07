@@ -95,13 +95,14 @@
             (let [db (assoc db :seq new-seq)
                   db (update-at db :by-docid assoc docid (:doc update))
                   db (update-at db :by-seq assoc new-seq (:info update))]
-              [(:doc update) db])))
-        (let [update (:update (doc-update {"_id" docid} new-doc))]
+              [{:doc (:doc update)} (assoc state dbid db)])))
+        (let [update (:update (doc-update {"_id" docid}
+                                          (assoc new-doc "_id" docid)))]
           (let [db (assoc db :seq new-seq)
                 db (update-at db :doc-count inc)
                 db (update-at db :by-docid assoc docid (:doc update))
                 db (update-at db :by-seq assoc new-seq (:info update))]
-            [(:doc update) db]))))))
+            [{:doc (:doc update)} (assoc state dbid db)]))))))
 
 (def doc-put! (set-fn doc-put))
 
@@ -118,10 +119,12 @@
   "no-db, no-doc, conflict, doc"
   [state dbid docid rev]
   (let [doc {"_id" docid "_rev" rev "_deleted" true}
-        [db doc] (doc-put state dbid docid doc)
-        db (update-at db :doc-count dec)
-        db (dissoc db :by-doc-id docid)]
-    [db doc]))
+        [ret db] (doc-put state dbid docid doc)]
+    (if-not (:doc ret)
+      [ret nil]
+      (let [db (update-in db [dbid :doc-count] dec)
+            db (update-in db [dbid :by-docid] #(dissoc % docid))]
+        [ret db]))))
 
 (def doc-delete! (set-fn doc-delete))
 
