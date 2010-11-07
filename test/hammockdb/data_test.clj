@@ -47,9 +47,9 @@
 (deftest test-doc-update-errors
   (is (:id-mismatch (data/doc-update {:id "doc1"} {"k" "v"})))
   (is (:id-mismatch (data/doc-update {:id "doc1"} {"_id" "doc2" "k" "v"})))
-  (is (:rev-mismatch (data/doc-update {:id "doc1" :rev "1-a"}
+  (is (:conflict (data/doc-update {:id "doc1" :rev "1-a"}
                                       {"_id" "doc1" "_rev" "2-b"})))
-  (is (:rev-mismatch (data/doc-update {:id "doc1" :rev "1-a"} {"_id" "doc1"})))
+  (is (:conflict (data/doc-update {:id "doc1" :rev "1-a"} {"_id" "doc1"})))
   (is (:invalid-key (data/doc-update {:id "doc1"} {"_id" "doc1" "_wot" "v"}))))
 
 (def test-doc-update-new

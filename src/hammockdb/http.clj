@@ -44,7 +44,7 @@
 
   ; abuse restart to clear state
   (POST "/_restart" []
-    (swap! ident (constantly {}))
+    (swap! ident (constantly (data/state-new)))
     (jr 200 {"ok" true}))
 
   ; uuid service
@@ -64,13 +64,7 @@
   (PUT "/:dbid" [dbid]
     (switch (data/db-put! ident dbid)
       existing-db (je 412 "db_exists" "The database already exists")
-      db (jr 201 {"ok" true} {"Location" (format "/%s" dbid)})))
-
-  ; get db info
-  (GET "/:dbid" [dbid]
-    (switch (data/db-get @ident dbid)
-      no-db (je-no-db dbid)
-      db (jr 200 db)))
+      db (jr 201 {"ok" true})))
 
   ; delete db
   (DELETE "/:dbid" [dbid]
@@ -78,36 +72,42 @@
       no-db (je-no-db dbid)
       ok (jr 200 {"ok" true})))
 
-  ; get doc
-  (GET "/:dbid/:docid" {{:strs [dbid docid rev attachements conflicts]} :params}
-    (switch (data/doc-get @ident dbid docid
-              {:rev rev :attachements attachements :conflicts conflicts})
-      no-db   (je-no-db dbid)
-      no-doc  (je-no-doc docid)
-      del-doc (je 404 "not_found" (format "Deleted doc with id: %s" docid))
-      doc     (jr 200 doc)))
+  ; get db info
+  (GET "/:dbid" [dbid]
+    (switch (data/db-get @ident dbid)
+      no-db (je-no-db dbid)
+      db (jr 200 db)))
 
   ; create unkeyed doc
-  (POST "/:dbid" {body :json-params {dbid "dbid"} :params}
-    (switch (data/doc-post! ident dbid body)
+  (POST "/:dbid" {new-doc :json-params {dbid "dbid"} :params}
+    (switch (data/doc-post! ident dbid new-doc)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
-      doc (jr 201 (assoc doc "ok" true)
-                  {"Location" (format "/%s/%s" dbid (doc "_id"))})))
+      doc (jr 201 {"ok" true "id" (get doc "_id") "rev" (get doc "_rev")})))
 
   ; created keyed doc or update doc
-  (PUT "/:dbid/:docid" {body :json-params {dbid "dbid" docid "docid"} :params}
-    (switch (data/doc-put! ident dbid docid body)
+  (PUT "/:dbid/:docid" {new-doc :json-params
+                        {dbid "dbid" docid "docid"} :params}
+    (switch (data/doc-put! ident dbid docid new-doc)
       no-db (je-no-db dbid)
       bad-doc (je-bad-doc)
-      doc (jr 201 doc {"Location" (format "/%s/%s" dbid docid)})))
+      conflict (je 408 "conflict" "Document update conflict")
+      doc (jr 201 {"ok" true "id" (get doc "_id") "rev" (get doc "_rev")})))
 
   ; delete doc
   (DELETE "/:dbid/:docid" {{:strs [dbid docid rev]} :params}
     (switch (data/doc-delete! ident dbid docid rev)
       no-db (je-no-db dbid)
       no-doc (je-no-doc docid)
-      doc (jr 200 {"ok" true "rev" (get doc "_rev")}))))
+      conflict (je 408 "confilct" "Document deletion conflict.")
+      doc (jr 200 {"ok" true "rev" (get doc "_rev")})))
+
+  ; get doc
+  (GET "/:dbid/:docid" {{:strs [dbid docid]} :params}
+    (switch (data/doc-get @ident dbid docid)
+      no-db   (je-no-db dbid)
+      no-doc  (je-no-doc docid)
+      doc     (jr 200 doc))))
 
 ; middlewares
 (defn wrap-internal-error [handler]
