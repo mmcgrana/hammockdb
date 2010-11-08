@@ -15,10 +15,12 @@
 (defn jbody? [data]
   (and data (not (vector? data))))
 
-(defn jr [status data & [headers]]
+(defn jh [status & [headers]]
   {:status status
-   :headers (merge headers {"Content-Type" "application/json"})
-   :body (json/generate-string data)})
+   :headers (merge headers {"Content-Type" "application/json"})})
+
+(defn jr [status data & [headers]]
+  (assoc (jh status headers) :body (json/generate-string data)))
 
 (defn je [status error reason]
   (jr status {"error" error "reason" reason}))
@@ -31,6 +33,26 @@
 
 (defn je-bad-doc []
   (je 400 "bad_request" "Request body must be a JSON object"))
+
+(defn emit-response [emit resp]
+  (emit {:type :status :data (:status resp)})
+  (emit {:type :headers :data (:headers resp)})
+  (emit {:type :chunk :data (:body resp)})
+  (emit {:type :close}))
+
+; async db observations
+(defn longpoll-new [emit]
+  {:lpid (data/uuid) :emit emit})
+
+(defn longpoll-stop [{:keys [lpid] :as lp}]
+  (data/db-changes-unsubscribe ident lpid))
+
+(defn longpoll-start [{:keys [lpid emit] :as lp} ident dbid i s]
+  (data/db-changes-subscribe-longpoll ident dbid i s lpid
+    (fn [{:keys [type data]}]
+      (case type
+        :no-db   (emit-response emit (je-no-db dbid))
+        :changes (emit-response emit (jr 200 data))))))
 
 ; http api
 (defroutes handler
@@ -79,12 +101,25 @@
       ok (jr 200 {"ok" true})))
 
   ; changes feed
-  (GET "/:dbid/_changes" {{dbid "dbid"
-                           include-docs "include_docs" s "since"} :params}
-    (switch (data/db-changes @ident dbid
-              include-docs (and s (util/parse-int s)))
-      no-db (je-no-db dbid)
-      changes (jr 200 changes)))
+  (GET "/:dbid/_changes" {{dbid "dbid" i "include_docs"
+                           s "since" f "feed"} :params}
+    (let [s (and s (util/parse-int s))]
+      (cond
+        (= "longpoll" f)
+          {:async :http
+           :reactor
+             (fn [emit]
+               (let [lp (longpoll-new emit)]
+                 (fn [evnt]
+                   (case (:type evnt)
+                     :init
+                       (longpoll-start lp ident dbid i s)
+                     :error
+                       (longpoll-stop lp)))))}
+        :else
+          (switch (data/db-changes @ident dbid i s)
+            no-db (je-no-db dbid)
+            changes (jr 200 changes)))))
 
   ; get doc
   (GET "/:dbid/:docid" {{:strs [dbid docid]} :params}
@@ -131,7 +166,7 @@
                              (:uri req)))
     (handler req)))
 
-; http service
+; full http service
 (def app
   (-> #'handler
     wrap-json-params

@@ -28,7 +28,7 @@
    :by-seq (sorted-map)})
 
 (defn db-list
-  "dbids"
+  ":dbids"
   [state]
   {:dbids (or (keys state) [])})
 
@@ -38,14 +38,14 @@
    "doc_count" (:doc-count db)})
 
 (defn db-get
-  "no-db, db"
+  ":no-db, :db"
   [state dbid]
   (if-not-let [db (get state dbid)]
     {:no-db true}
     {:db (db-inflate db dbid)}))
 
 (defn db-put
-  "existing-db, db"
+  ":existing-db, :db"
   [state dbid]
   (if (get state dbid)
     [{:existing-db true} nil]
@@ -55,7 +55,7 @@
 (def db-put! (set-fn db-put))
 
 (defn db-delete
-  "no-db, ok"
+  ":no-db, :ok"
   [state dbid]
   (if-not-let [db (get state dbid)]
     [{:no-db true} nil]
@@ -74,19 +74,53 @@
                item)]
     item))
 
-(defn db-changes [state dbid include-docs since]
+(defn db-changes
+  ":no-db, :changes"
+  [state dbid idocs since]
   (if-not-let [db (get state dbid)]
     {:no-db true}
     (let [last-seq (:seq db)
           index (:by-seq db)
-          elems (if since (subseq index >= since) index)
-          results (map #(db-change-item db % include-docs) elems)]
-    {:changes
-      {"results" results
-       "last_seq" last-seq}})))
+          elems (if since (subseq index > since) index)
+          results (map #(db-change-item db % idocs) elems)]
+      {:changes
+        {"results" results
+         "last_seq" last-seq}})))
+
+(defn call-once [f]
+  (let [called (atom false)]
+    (fn [& args]
+      (if (compare-and-set! called false true)
+        (try
+          (apply f args)
+          (catch Exception e
+            (.printStackTrace e)))))))
+
+(defn db-changes-subscribe [ident sid f]
+  (add-watch ident sid (fn [_ _ _ state] (f state))))
+
+(defn db-changes-unsubscribe [ident sid]
+  (remove-watch ident sid))
+
+(defn db-changes-subscribe-longpoll
+  ":no-db, :changes. called no more than once."
+  [ident dbid idocs since lpid db-emit]
+  (let [db-emit-once (call-once db-emit)
+        callback
+          (fn [state]
+            (if-not-let [db (get state dbid)]
+              (do
+                (db-changes-unsubscribe ident lpid)
+                (db-emit-once {:type :no-db}))
+              (when (> (:seq db) since)
+                (db-changes-unsubscribe ident lpid)
+                (let [ret (db-changes state dbid idocs since)]
+                  (db-emit-once {:type :changes :data (:changes ret)})))))]
+    (db-changes-subscribe ident lpid callback)
+    (callback @ident)))
 
 (defn doc-get
-  "no-db, no-doc, doc"
+  ":no-db, :no-doc, :doc"
   [state dbid docid]
   (if-not-let [db (get state dbid)]
     {:no-db true}
@@ -101,7 +135,7 @@
     (str 1 "-" (uuid))))
 
 (defn doc-update
-  "conflict, update"
+  ":conflict, :update"
   [doc new-doc]
   (let [rev (get doc "_rev")
         check-rev (get new-doc "_rev")]
@@ -113,7 +147,7 @@
         {:update {:doc new-doc :info info}}))))
 
 (defn doc-put
-  "no-db, doc"
+  ":no-db, :doc"
   [state dbid docid new-doc & [rev]]
   (if-not-let [db (get state dbid)]
     [{:no-db true} nil]
@@ -137,14 +171,14 @@
 (def doc-put! (set-fn doc-put))
 
 (defn doc-post
-  "no-db, doc"
+  ":no-db, :doc"
   [state dbid doc]
   (doc-put state dbid (uuid) doc))
 
 (def doc-post! (set-fn doc-post))
 
 (defn doc-delete
-  "no-db, no-doc, conflict, doc"
+  ":no-db, :no-doc, :conflict, :doc"
   [state dbid docid rev]
   (let [ret (doc-get state dbid docid)]
     (if-not-let [doc (:doc ret)]
